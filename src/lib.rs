@@ -21,13 +21,27 @@ pub fn repl(_source: &Option<String>) {
 }
 
 pub fn compile(source: &str) {
-    let _lexer = match Tokenizer::new(source) {
-        Ok(data) => data,
-        Err(e) => match e {
-            Error::FileNotFound(path, os_error) | Error::MemoryMapFiled(path, os_error) => {
-                eprintln!("[{path}] :: {os_error}");
-                return;
-            }
-        },
-    };
+    let prova: std::rc::Rc<tokens::token::Token>;
+    {
+        let mut lexer = match Tokenizer::new(source) {
+            Ok(lexer) => lexer,
+            Err(e) => match e {
+                Error::FileNotFound(path, os_error) | Error::MemoryMapFiled(path, os_error) => {
+                    eprintln!("[{path}] :: {os_error}");
+                    return;
+                }
+                Error::MissingSourceFileReference => {
+                    eprint!("Boh");
+                    return;
+                }
+            },
+        };
+
+        prova = match lexer.get_token() {
+            Ok(tk) => tk,
+            Err(_) => todo!(),
+        };
+    }
+
+    println!("{:?}", prova);
 }

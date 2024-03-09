@@ -1,47 +1,59 @@
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 use super::{error::Error, source::Source, token::Token, token_type::TokenType};
 
 #[allow(dead_code)]
-pub struct Tokenizer {
-    current: Rc<RefCell<Source>>,
-    files: Vec<Rc<RefCell<Source>>>,
+pub struct Tokenizer<'lexer> {
+    files: Vec<Source<'lexer>>,
 }
 
 #[allow(dead_code)]
-impl Tokenizer {
-    pub fn new(source: &str) -> Result<Self, Error> {
-        let file = Rc::new(RefCell::new(Source::new(source)?));
-
+impl<'lexer> Tokenizer<'lexer> {
+    pub fn new(source: &'lexer str) -> Result<Self, Error> {
         Ok(Self {
-            current: Rc::clone(&file),
-            files: vec![Rc::clone(&file)],
+            files: vec![Source::new(source)?],
         })
     }
 
-    pub fn scan<'a>(&'a mut self, new_file: &'a str) -> Result<(), Error> {
-        let new_file = Rc::new(RefCell::new(Source::new(new_file)?));
-
-        self.files.push(Rc::clone(&new_file));
-        self.current = Rc::clone(&new_file);
+    pub fn scan(&mut self, new_file: &'lexer str) -> Result<(), Error> {
+        self.files.push(Source::new(new_file)?);
         Ok(())
     }
 
-    pub fn get_token(&mut self) -> Token {
+    pub fn get_token(&mut self) -> Result<Rc<Token<'lexer>>, Error> {
         self.skip_whitespace();
-        let _ch = self.advance();
 
-        Token::new(
-            self.current.borrow().line,
-            self.current.borrow().column,
-            TokenType::Eof,
-            "",
-        )
+        {
+            // Scope needed to delete this ↓ mut borrow.
+            let current = self.files.last_mut().unwrap();
+            current.start = current.current;
+        }
+
+        let ch: u8 = self.advance();
+
+        match ch {
+            b'(' => self.make_token(TokenType::LeftParen),
+            b')' => self.make_token(TokenType::RightParen),
+            b'[' => self.make_token(TokenType::LeftSquare),
+            b']' => self.make_token(TokenType::RightSquare),
+            b'{' => self.make_token(TokenType::LeftBrace),
+            b'}' => self.make_token(TokenType::RightBrace),
+            b'?' => self.make_token(TokenType::Question),
+            b',' => self.make_token(TokenType::Comma),
+            b'.' => self.make_token(TokenType::Dot),
+            b';' => self.make_token(TokenType::Semicolon),
+            b'%' => self.make_token(TokenType::Mod),
+            b':' => self.make_token(TokenType::Colon),
+            0x00 => self.make_token(TokenType::Eof),
+            _ => self.make_token(TokenType::Unknown(ch as char)),
+        }
     }
 
     fn skip_whitespace(&mut self) {
         while !self.is_finished() {
-            match self.current.clone().borrow().peek() {
+            let current = self.files.last().unwrap();
+
+            match current.peek() {
                 b' ' | b'\t' => self.advance(),
                 _ => return,
             };
@@ -49,26 +61,45 @@ impl Tokenizer {
     }
 
     fn advance(&mut self) -> u8 {
-        let peek = self.current.borrow().peek();
+        let current = self.files.last_mut().unwrap();
+        let peek = current.peek();
 
         if peek != 0x00 {
-            self.current.borrow_mut().update_line(|val: usize| -> usize { val + 1 });
-            self.current.borrow_mut().update_column(|val: usize| -> usize { val + 1 });
+            current.update_current();
+            current.update_column();
+            peek
+        } else if !self.is_finished() {
+            self.advance()
+        } else {
+            peek
         }
-
-        peek
     }
 
     fn is_finished(&mut self) -> bool {
-        if !self.current.borrow().is_at_eof() {
+        if !self.files.last().unwrap().is_at_eof() {
             false
         } else if self.files.len() > 1 {
             self.files.pop();
-            self.current = Rc::clone(self.files.last().as_ref().unwrap());
 
             false
         } else {
             true
         }
+    }
+
+    fn make_token(&self, ttype: TokenType) -> Result<Rc<Token<'lexer>>, Error> {
+        let current_file = self.files.last().unwrap();
+        let start: usize = current_file.start;
+        let current: usize = current_file.current;
+
+        let lexeme = String::from_utf8(current_file.mmap[start..current].to_vec()).unwrap();
+
+        Ok(Rc::new(Token::new(
+            current_file.line,
+            current_file.column - lexeme.len(),
+            ttype,
+            lexeme,
+            &current_file.name,
+        )))
     }
 }

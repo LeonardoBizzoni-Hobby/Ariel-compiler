@@ -5,17 +5,18 @@ use memmap2::Mmap;
 use super::error::Error;
 
 #[allow(dead_code)]
-pub struct Source {
+pub struct Source<'lexer> {
     pub line: usize,
     pub column: usize,
     pub start: usize,
     pub current: usize,
     pub finished: bool,
+    pub name: &'lexer str,
     pub mmap: Mmap,
 }
 
-impl Source {
-    pub fn new(path: &str) -> Result<Self, Error> {
+impl<'lexer> Source<'lexer> {
+    pub fn new(path: &'lexer str) -> Result<Self, Error> {
         let file = match File::open(path) {
             Ok(file) => file,
             Err(e) => return Err(Error::FileNotFound(path, e.to_string())),
@@ -34,6 +35,7 @@ impl Source {
             start: 0,
             current: 0,
             finished: false,
+            name: path,
             mmap,
         })
     }
@@ -49,17 +51,11 @@ impl Source {
         }
     }
 
-    pub fn update_line<F>(&mut self, how: F)
-    where
-        F: Fn(usize) -> usize,
-    {
-        self.line = how(self.line);
+    pub fn update_current(&mut self) {
+        self.current += 1;
     }
 
-    pub fn update_column<F>(&mut self, how: F)
-    where
-        F: Fn(usize) -> usize,
-    {
-        self.column = how(self.line);
+    pub fn update_column(&mut self) {
+        self.column += 1;
     }
 }

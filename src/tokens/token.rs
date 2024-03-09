@@ -1,19 +1,22 @@
 use super::token_type::TokenType;
 
-pub struct Token<'ctx> {
+#[derive(Debug)]
+pub struct Token<'lexer> {
     line: usize,
     column: usize,
     ttype: TokenType,
-    lexeme: &'ctx str,
+    lexeme: String,
+    found_in: &'lexer str,
 }
 
-impl<'ctx> Token<'ctx> {
-    pub fn new(line: usize, column: usize, ttype: TokenType, lexeme: &'ctx str) -> Self {
+impl<'lexer> Token<'lexer> {
+    pub fn new(line: usize, column: usize, ttype: TokenType, lexeme: String, found_in: &'lexer str) -> Self {
         Self {
             line,
             column,
             ttype,
             lexeme,
+            found_in,
         }
     }
 }

@@ -1,5 +1,19 @@
+#[derive(Debug)]
 pub enum TokenType {
+    Eof,
     U8(u8),
     I8(i8),
-    Eof,
+    LeftParen,
+    RightParen,
+    LeftSquare,
+    RightSquare,
+    LeftBrace,
+    RightBrace,
+    Question,
+    Comma,
+    Dot,
+    Semicolon,
+    Mod,
+    Colon,
+    Unknown(char),
 }
