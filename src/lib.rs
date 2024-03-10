@@ -21,7 +21,7 @@ pub fn repl(_source: &Option<String>) {
 }
 
 pub fn compile(source: &str) {
-    let prova: std::rc::Rc<tokens::token::Token>;
+    let prova: Vec<std::rc::Rc<tokens::token::Token>>;
     {
         let mut lexer = match Tokenizer::new(source) {
             Ok(lexer) => lexer,
@@ -30,18 +30,11 @@ pub fn compile(source: &str) {
                     eprintln!("[{path}] :: {os_error}");
                     return;
                 }
-                Error::MissingSourceFileReference => {
-                    eprint!("Boh");
-                    return;
-                }
             },
         };
 
-        prova = match lexer.get_token() {
-            Ok(tk) => tk,
-            Err(_) => todo!(),
-        };
+        prova = lexer.get_all_tokens();
     }
 
-    println!("{:?}", prova);
+    println!("{:#?}", prova);
 }

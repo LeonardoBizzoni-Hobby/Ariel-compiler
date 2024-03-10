@@ -2,11 +2,11 @@ use super::token_type::TokenType;
 
 #[derive(Debug)]
 pub struct Token<'lexer> {
-    line: usize,
-    column: usize,
-    ttype: TokenType,
-    lexeme: String,
-    found_in: &'lexer str,
+    pub line: usize,
+    pub column: usize,
+    pub ttype: TokenType,
+    pub lexeme: String,
+    pub found_in: &'lexer str,
 }
 
 impl<'lexer> Token<'lexer> {

@@ -30,7 +30,7 @@ impl<'lexer> Source<'lexer> {
         };
 
         Ok(Self {
-            line: 0,
+            line: 1,
             column: 0,
             start: 0,
             current: 0,
@@ -51,11 +51,10 @@ impl<'lexer> Source<'lexer> {
         }
     }
 
-    pub fn update_current(&mut self) {
-        self.current += 1;
-    }
-
-    pub fn update_column(&mut self) {
-        self.column += 1;
+    pub fn peek_ahead(&self, n: usize) -> u8 {
+        match self.mmap.get(self.current + n) {
+            Some(byte) => *byte,
+            None => 0x00,
+        }
     }
 }
