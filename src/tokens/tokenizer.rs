@@ -49,15 +49,10 @@ impl<'lexer> Tokenizer<'lexer> {
     pub fn get_token(&mut self) -> Rc<Token<'lexer>> {
         self.skip_whitespace();
 
-        {
-            // Scope needed to delete this ↓ mut borrow.
-            let current = last_mut!(self.files);
-            current.start = current.current;
-        }
+        let current = last_mut!(self.files);
+        current.start = current.current;
 
-        let ch: u8 = self.advance();
-
-        match ch {
+        match self.advance() {
             b'"' => self.make_string_token(),
             b'0'..=b'9' => self.make_number_token(),
             b'a'..=b'z' | b'A'..=b'Z' | b'_' => self.make_identifier_token(),
@@ -78,7 +73,7 @@ impl<'lexer> Tokenizer<'lexer> {
                         b'=' => self.make_token(TokenType::IterEqual),
                         _ => self.make_token(TokenType::Iter),
                     }
-                },
+                }
                 _ => self.make_token(TokenType::Dot),
             },
             b':' => match last!(self.files).peek() {
@@ -201,7 +196,7 @@ impl<'lexer> Tokenizer<'lexer> {
                 _ => self.make_token(TokenType::Star),
             },
             0x00 => self.make_token(TokenType::Eof),
-            _ => self.make_token(TokenType::Unknown(ch as char)),
+            ch => self.make_token(TokenType::Unknown(ch as char)),
         }
     }
 
