@@ -69,9 +69,18 @@ impl<'lexer> Tokenizer<'lexer> {
             b'}' => self.make_token(TokenType::RightBrace),
             b'?' => self.make_token(TokenType::Question),
             b',' => self.make_token(TokenType::Comma),
-            b'.' => self.make_token(TokenType::Dot),
             b';' => self.make_token(TokenType::Semicolon),
             b'%' => self.make_token(TokenType::Mod),
+            b'.' => match last!(self.files).peek() {
+                b'.' => {
+                    self.advance();
+                    match last!(self.files).peek() {
+                        b'=' => self.make_token(TokenType::IterEqual),
+                        _ => self.make_token(TokenType::Iter),
+                    }
+                },
+                _ => self.make_token(TokenType::Dot),
+            },
             b':' => match last!(self.files).peek() {
                 b'=' => {
                     self.advance();
@@ -391,11 +400,14 @@ impl<'lexer> Tokenizer<'lexer> {
                         ("false".to_owned(), TokenType::False),
                         ("fn".to_owned(), TokenType::Fn),
                         ("for".to_owned(), TokenType::For),
+                        ("foreach".to_owned(), TokenType::ForEach),
                         ("if".to_owned(), TokenType::If),
+                        ("in".to_owned(), TokenType::In),
                         ("import".to_owned(), TokenType::Import),
                         ("let".to_owned(), TokenType::Let),
                         ("loop".to_owned(), TokenType::Loop),
                         ("main".to_owned(), TokenType::Main),
+                        ("match".to_owned(), TokenType::Match),
                         ("nil".to_owned(), TokenType::Nil),
                         ("return".to_owned(), TokenType::Return),
                         ("struct".to_owned(), TokenType::Struct),
