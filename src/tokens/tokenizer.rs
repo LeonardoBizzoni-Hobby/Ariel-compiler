@@ -86,6 +86,10 @@ impl<'lexer> Tokenizer<'lexer> {
                     self.advance();
                     self.make_token(TokenType::DynamicDefinition)
                 }
+                b':' => {
+                    self.advance();
+                    self.make_token(TokenType::StaticScopeGetter)
+                }
                 _ => self.make_token(TokenType::Colon),
             },
             b'!' => match last!(self.files).peek() {
@@ -409,6 +413,8 @@ impl<'lexer> Tokenizer<'lexer> {
                         ("main".to_owned(), TokenType::Main),
                         ("match".to_owned(), TokenType::Match),
                         ("nil".to_owned(), TokenType::Nil),
+                        ("namespace".to_owned(), TokenType::Namespace),
+                        ("pub".to_owned(), TokenType::Public),
                         ("return".to_owned(), TokenType::Return),
                         ("struct".to_owned(), TokenType::Struct),
                         ("super".to_owned(), TokenType::Super),

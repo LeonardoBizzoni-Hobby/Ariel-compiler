@@ -18,6 +18,7 @@ pub enum TokenType {
     Colon,
     Semicolon,
     DynamicDefinition,
+    StaticScopeGetter,
 
     Question,
 
@@ -57,6 +58,7 @@ pub enum TokenType {
     True,
     False,
     Identifier,
+    Nil,
 
     U8,
     U16,
@@ -85,7 +87,8 @@ pub enum TokenType {
     Let,
     Loop,
     Main,
-    Nil,
+    Namespace,
+    Public,
     Return,
     Struct,
     Super,
