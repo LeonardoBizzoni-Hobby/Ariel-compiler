@@ -335,14 +335,31 @@ impl<'lexer> Tokenizer<'lexer> {
             !current.is_at_eof() && current.peek() != b'"'
         } {
             if last!(self.files).peek() == b'\\' {
-                // String escape sequences
+                self.advance();
+                match self.advance() {
+                    b'n' => lexeme += "\n",
+                    b't' => lexeme += "\t",
+                    b'r' => lexeme += "\r",
+                    b'\'' => lexeme += "\'",
+                    b'"' => lexeme += "\"",
+                    b'\\' => lexeme += "\\",
+                    ch => {
+                        return self.make_token_from(
+                            TokenType::Unknown(ch as char),
+                            "Invalid escape sequence.",
+                        )
+                    }
+                }
             } else {
                 lexeme += &String::from_utf8(vec![self.advance()]).unwrap();
             }
         }
 
         if last!(self.files).is_at_eof() {
-            self.make_token_from(TokenType::Unknown(last!(self.files).peek() as char), "Unterminated string.")
+            self.make_token_from(
+                TokenType::Unknown(last!(self.files).peek() as char),
+                "Unterminated string.",
+            )
         } else {
             self.advance();
             self.make_token_from(TokenType::String, &lexeme)
