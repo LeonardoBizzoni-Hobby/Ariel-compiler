@@ -33,6 +33,7 @@ impl<'lexer> Tokenizer<'lexer> {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn get_all_tokens(&mut self) -> Vec<Rc<Token<'lexer>>> {
         let mut res: Vec<Rc<Token>> = vec![];
 
@@ -439,5 +440,249 @@ impl<'lexer> Tokenizer<'lexer> {
                 self.make_token(TokenType::Identifier)
             }
         })(&id)
+    }
+}
+
+#[allow(unused_imports)]
+mod tests {
+    use crate::tokens::{token::Token, token_type::TokenType, tokenizer::Tokenizer};
+    use std::rc::Rc;
+    use std::{fs::File as StdFile, io::Write};
+
+    #[test]
+    fn single_file_tokenization() {
+        let _ = StdFile::create("single.file")
+            .unwrap()
+            .write_all(b"a b c d e");
+
+        let mut lexer =
+            Tokenizer::new("single.file").expect("Found error variant in Tokenizer init.");
+
+        let scanned = lexer.get_all_tokens();
+        let expected = vec![
+            Rc::new(Token::new(
+                1,
+                0,
+                TokenType::Identifier,
+                "a".to_string(),
+                "single.file",
+            )),
+            Rc::new(Token::new(
+                1,
+                2,
+                TokenType::Identifier,
+                "b".to_string(),
+                "single.file",
+            )),
+            Rc::new(Token::new(
+                1,
+                4,
+                TokenType::Identifier,
+                "c".to_string(),
+                "single.file",
+            )),
+            Rc::new(Token::new(
+                1,
+                6,
+                TokenType::Identifier,
+                "d".to_string(),
+                "single.file",
+            )),
+            Rc::new(Token::new(
+                1,
+                8,
+                TokenType::Identifier,
+                "e".to_string(),
+                "single.file",
+            )),
+            Rc::new(Token::new(
+                1,
+                9,
+                TokenType::Eof,
+                "".to_string(),
+                "single.file",
+            )),
+        ];
+
+        assert_eq!(expected.len(), scanned.len());
+        for x in 0..scanned.len() {
+            assert_eq!(expected[x], scanned[x]);
+        }
+
+        std::fs::remove_file("single.file").unwrap();
+    }
+
+    #[test]
+    fn multiple_file_tokenization() {
+        StdFile::create("multiple_file_test1")
+            .unwrap()
+            .write_all(b"a b")
+            .unwrap();
+        StdFile::create("multiple_file_test2")
+            .unwrap()
+            .write_all(b"c d e")
+            .unwrap();
+
+        let mut lexer =
+            Tokenizer::new("multiple_file_test1").expect("Found error variant in Tokenizer init.");
+        lexer
+            .scan("multiple_file_test2")
+            .expect("Failed to add second file to the sources stack in Tokenizer.");
+
+        let scanned = lexer.get_all_tokens();
+        let expected = vec![
+            Rc::new(Token::new(
+                1,
+                0,
+                TokenType::Identifier,
+                "c".to_string(),
+                "multiple_file_test2",
+            )),
+            Rc::new(Token::new(
+                1,
+                2,
+                TokenType::Identifier,
+                "d".to_string(),
+                "multiple_file_test2",
+            )),
+            Rc::new(Token::new(
+                1,
+                4,
+                TokenType::Identifier,
+                "e".to_string(),
+                "multiple_file_test2",
+            )),
+            Rc::new(Token::new(
+                1,
+                0,
+                TokenType::Identifier,
+                "a".to_string(),
+                "multiple_file_test1",
+            )),
+            Rc::new(Token::new(
+                1,
+                2,
+                TokenType::Identifier,
+                "b".to_string(),
+                "multiple_file_test1",
+            )),
+            Rc::new(Token::new(
+                1,
+                3,
+                TokenType::Eof,
+                "".to_string(),
+                "multiple_file_test1",
+            )),
+        ];
+
+        assert_eq!(expected.len(), scanned.len());
+        for x in 0..scanned.len() {
+            assert_eq!(expected[x], scanned[x]);
+        }
+
+        std::fs::remove_file("multiple_file_test1").unwrap();
+        std::fs::remove_file("multiple_file_test2").unwrap();
+    }
+
+    #[test]
+    fn keyword_tokenization_test() {
+        StdFile::create("keyword.test")
+            .unwrap()
+            .write_all(
+                b"_
+break
+continue
+else
+enum
+false
+fn
+for
+foreach
+if
+in
+import
+let
+loop
+main
+match
+nil
+namespace
+pub
+return
+struct
+super
+template
+this
+true
+void
+while
+u8
+u16
+u32
+u64
+i8
+i16
+i32
+i64
+f32
+f64
+str",
+            )
+            .unwrap();
+        let expected_types = vec![
+            TokenType::DontCare,
+            TokenType::Break,
+            TokenType::Continue,
+            TokenType::Else,
+            TokenType::Enum,
+            TokenType::False,
+            TokenType::Fn,
+            TokenType::For,
+            TokenType::ForEach,
+            TokenType::If,
+            TokenType::In,
+            TokenType::Import,
+            TokenType::Let,
+            TokenType::Loop,
+            TokenType::Main,
+            TokenType::Match,
+            TokenType::Nil,
+            TokenType::Namespace,
+            TokenType::Public,
+            TokenType::Return,
+            TokenType::Struct,
+            TokenType::Super,
+            TokenType::Template,
+            TokenType::This,
+            TokenType::True,
+            TokenType::Void,
+            TokenType::While,
+            TokenType::U8,
+            TokenType::U16,
+            TokenType::U32,
+            TokenType::U64,
+            TokenType::I8,
+            TokenType::I16,
+            TokenType::I32,
+            TokenType::I64,
+            TokenType::F32,
+            TokenType::F64,
+            TokenType::StringType,
+            TokenType::Eof,
+        ];
+
+        let mut lexer =
+            Tokenizer::new("keyword.test").expect("Found error variant in Tokenizer init.");
+
+        assert_eq!(
+            expected_types,
+            lexer
+                .get_all_tokens()
+                .iter()
+                .map(|tk| tk.ttype.clone())
+                .collect::<Vec<TokenType>>()
+        );
+
+        std::fs::remove_file("keyword.test").unwrap();
     }
 }

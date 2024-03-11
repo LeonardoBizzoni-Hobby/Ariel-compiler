@@ -1,6 +1,6 @@
 use super::token_type::TokenType;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Token<'lexer> {
     pub line: usize,
     pub column: usize,

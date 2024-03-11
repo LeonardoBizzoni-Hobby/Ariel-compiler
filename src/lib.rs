@@ -21,20 +21,15 @@ pub fn repl(_source: &Option<String>) {
 }
 
 pub fn compile(source: &str) {
-    let prova: Vec<std::rc::Rc<tokens::token::Token>>;
-    {
-        let mut lexer = match Tokenizer::new(source) {
-            Ok(lexer) => lexer,
-            Err(e) => match e {
-                Error::FileNotFound(path, os_error) | Error::MemoryMapFiled(path, os_error) => {
-                    eprintln!("[{path}] :: {os_error}");
-                    return;
-                }
-            },
-        };
+    let mut lexer = match Tokenizer::new(source) {
+        Ok(lexer) => lexer,
+        Err(e) => match e {
+            Error::FileNotFound(path, os_error) | Error::MemoryMapFiled(path, os_error) => {
+                eprintln!("[{path}] :: {os_error}");
+                return;
+            }
+        },
+    };
 
-        prova = lexer.get_all_tokens();
-    }
-
-    println!("{:#?}", prova);
+    println!("{:#?}", lexer.get_token());
 }
