@@ -16,7 +16,7 @@ pub enum Commands {
     Repl,
 }
 
-pub fn repl(_source: &Option<String>) {
+pub fn repl() {
     todo!("REPL.")
 }
 

@@ -6,7 +6,7 @@ fn main() {
 
     match &args.commands {
         Some(lang::Commands::Repl) => {
-            repl(&args.source);
+            repl();
         },
         None => match args.source {
             Some(source) => compile(&source),

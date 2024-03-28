@@ -1,57 +1,38 @@
 use lazy_static::lazy_static;
-use std::{collections::HashMap, rc::Rc};
+use std::collections::HashMap;
 
 use super::{error::Error, source::Source, token::Token, token_type::TokenType};
 
-macro_rules! last_mut {
-    ($vec:expr) => {
-        $vec.last_mut().expect("Vector is empty")
-    };
-}
-
-macro_rules! last {
-    ($vec:expr) => {
-        $vec.last().expect("Vector is empty")
-    };
-}
-
 #[allow(dead_code)]
 pub struct Tokenizer<'lexer> {
-    files: Vec<Source<'lexer>>,
+    file: Source<'lexer>,
 }
 
 #[allow(dead_code)]
 impl<'lexer> Tokenizer<'lexer> {
     pub fn new(source: &'lexer str) -> Result<Self, Error> {
         Ok(Self {
-            files: vec![Source::new(source)?],
+            file: Source::new(source)?,
         })
     }
 
-    pub fn scan(&mut self, new_file: &'lexer str) -> Result<(), Error> {
-        self.files.push(Source::new(new_file)?);
-        Ok(())
-    }
-
     #[cfg(test)]
-    pub fn get_all_tokens(&mut self) -> Vec<Rc<Token<'lexer>>> {
-        let mut res: Vec<Rc<Token>> = vec![];
+    pub fn get_all_tokens(&mut self) -> Vec<Box<Token<'lexer>>> {
+        let mut res: Vec<Box<Token>> = vec![];
 
         loop {
-            let tk = self.get_token();
-            res.push(Rc::clone(&tk));
+            res.push(self.get_token());
 
-            if tk.ttype == TokenType::Eof {
+            if res.last().unwrap().ttype == TokenType::Eof {
                 return res;
             }
         }
     }
 
-    pub fn get_token(&mut self) -> Rc<Token<'lexer>> {
+    pub fn get_token(&mut self) -> Box<Token<'lexer>> {
         self.skip_whitespace();
 
-        let current = last_mut!(self.files);
-        current.start = current.current;
+        self.file.start = self.file.current;
 
         match self.advance() {
             b'"' => self.make_string_token(),
@@ -67,17 +48,17 @@ impl<'lexer> Tokenizer<'lexer> {
             b',' => self.make_token(TokenType::Comma),
             b';' => self.make_token(TokenType::Semicolon),
             b'%' => self.make_token(TokenType::Mod),
-            b'.' => match last!(self.files).peek() {
+            b'.' => match self.file.peek() {
                 b'.' => {
                     self.advance();
-                    match last!(self.files).peek() {
+                    match self.file.peek() {
                         b'=' => self.make_token(TokenType::IterEqual),
                         _ => self.make_token(TokenType::Iter),
                     }
                 }
                 _ => self.make_token(TokenType::Dot),
             },
-            b':' => match last!(self.files).peek() {
+            b':' => match self.file.peek() {
                 b'=' => {
                     self.advance();
                     self.make_token(TokenType::DynamicDefinition)
@@ -88,28 +69,28 @@ impl<'lexer> Tokenizer<'lexer> {
                 }
                 _ => self.make_token(TokenType::Colon),
             },
-            b'!' => match last!(self.files).peek() {
+            b'!' => match self.file.peek() {
                 b'=' => {
                     self.advance();
                     self.make_token(TokenType::BangEqual)
                 }
                 _ => self.make_token(TokenType::Bang),
             },
-            b'=' => match last!(self.files).peek() {
+            b'=' => match self.file.peek() {
                 b'=' => {
                     self.advance();
                     self.make_token(TokenType::EqualEqual)
                 }
                 _ => self.make_token(TokenType::Equal),
             },
-            b'>' => match last!(self.files).peek() {
+            b'>' => match self.file.peek() {
                 b'=' => {
                     self.advance();
                     self.make_token(TokenType::GreaterEqual)
                 }
                 b'>' => {
                     self.advance();
-                    match last!(self.files).peek() {
+                    match self.file.peek() {
                         b'=' => {
                             self.advance();
                             self.make_token(TokenType::ShiftRightEqual)
@@ -119,14 +100,14 @@ impl<'lexer> Tokenizer<'lexer> {
                 }
                 _ => self.make_token(TokenType::Greater),
             },
-            b'<' => match last!(self.files).peek() {
+            b'<' => match self.file.peek() {
                 b'=' => {
                     self.advance();
                     self.make_token(TokenType::LessEqual)
                 }
                 b'<' => {
                     self.advance();
-                    match last!(self.files).peek() {
+                    match self.file.peek() {
                         b'=' => {
                             self.advance();
                             self.make_token(TokenType::ShiftLeftEqual)
@@ -136,21 +117,21 @@ impl<'lexer> Tokenizer<'lexer> {
                 }
                 _ => self.make_token(TokenType::Less),
             },
-            b'&' => match last!(self.files).peek() {
+            b'&' => match self.file.peek() {
                 b'&' => {
                     self.advance();
                     self.make_token(TokenType::And)
                 }
                 _ => self.make_token(TokenType::BitAnd),
             },
-            b'|' => match last!(self.files).peek() {
+            b'|' => match self.file.peek() {
                 b'|' => {
                     self.advance();
                     self.make_token(TokenType::Or)
                 }
                 _ => self.make_token(TokenType::BitOr),
             },
-            b'-' => match last!(self.files).peek() {
+            b'-' => match self.file.peek() {
                 b'=' => {
                     self.advance();
                     self.make_token(TokenType::MinusEquals)
@@ -161,14 +142,14 @@ impl<'lexer> Tokenizer<'lexer> {
                 }
                 _ => self.make_token(TokenType::Minus),
             },
-            b'+' => match last!(self.files).peek() {
+            b'+' => match self.file.peek() {
                 b'=' => {
                     self.advance();
                     self.make_token(TokenType::PlusEquals)
                 }
                 _ => self.make_token(TokenType::Plus),
             },
-            b'/' => match last!(self.files).peek() {
+            b'/' => match self.file.peek() {
                 b'=' => {
                     self.advance();
                     self.make_token(TokenType::SlashEquals)
@@ -179,10 +160,10 @@ impl<'lexer> Tokenizer<'lexer> {
                 }
                 _ => self.make_token(TokenType::Slash),
             },
-            b'*' => match last!(self.files).peek() {
+            b'*' => match self.file.peek() {
                 b'*' => {
                     self.advance();
-                    match last!(self.files).peek() {
+                    match self.file.peek() {
                         b'=' => {
                             self.advance();
                             self.make_token(TokenType::PowerEquals)
@@ -202,43 +183,35 @@ impl<'lexer> Tokenizer<'lexer> {
     }
 
     fn skip_whitespace(&mut self) {
-        while !self.is_finished() {
-            let current = last!(self.files);
-
-            match current.peek() {
+        while !self.file.is_at_eof() {
+            match self.file.peek() {
                 b'\n' | b'\r' => {
                     self.advance();
 
-                    let current = last_mut!(self.files);
-                    current.line += 1;
-                    current.column = 0;
+                    self.file.line += 1;
+                    self.file.column = 0;
                 }
                 b' ' | b'\t' => {
                     self.advance();
                 }
                 b'#' => {
-                    if last!(self.files).peek_ahead(1) == b'#' {
+                    if self.file.peek_ahead(1) == b'#' {
                         self.advance();
 
                         while {
-                            let current = last!(self.files);
-                            !current.is_at_eof()
-                                && !(current.peek() == b'#' && current.peek_ahead(1) == b'#')
+                            !self.file.is_at_eof()
+                                && !(self.file.peek() == b'#' && self.file.peek_ahead(1) == b'#')
                         } {
                             if matches!(self.advance(), b'\n' | b'\r') {
-                                let current = last_mut!(self.files);
-                                current.line += 1;
-                                current.column = 0;
+                                self.file.line += 1;
+                                self.file.column = 0;
                             }
                         }
 
                         self.advance();
                         self.advance();
                     } else {
-                        while {
-                            let curr = last!(self.files);
-                            !curr.is_at_eof() && curr.peek() != b'\n'
-                        } {
+                        while !self.file.is_at_eof() && self.file.peek() != b'\n' {
                             self.advance();
                         }
                     }
@@ -249,85 +222,60 @@ impl<'lexer> Tokenizer<'lexer> {
     }
 
     fn advance(&mut self) -> u8 {
-        let current = last_mut!(self.files);
-        let peek = current.peek();
+        let peek = self.file.peek();
 
         if peek != 0x00 {
-            current.current += 1;
-            current.column += 1;
+            self.file.current += 1;
+            self.file.column += 1;
             peek
-        } else if !self.is_finished() {
-            self.advance()
         } else {
             peek
         }
     }
 
-    fn is_finished(&mut self) -> bool {
-        if self.files.len() == 0 {
-            true
-        } else if !last!(self.files).is_at_eof() {
-            false
-        } else if self.files.len() > 1 {
-            self.files.pop();
+    fn make_token(&self, ttype: TokenType) -> Box<Token<'lexer>> {
+        let start: usize = self.file.start;
+        let current: usize = self.file.current;
 
-            false
-        } else {
-            true
-        }
-    }
+        let lexeme = String::from_utf8(self.file.mmap[start..current].to_vec()).unwrap();
 
-    fn make_token(&self, ttype: TokenType) -> Rc<Token<'lexer>> {
-        let current_file = last!(self.files);
-        let start: usize = current_file.start;
-        let current: usize = current_file.current;
-
-        let lexeme = String::from_utf8(current_file.mmap[start..current].to_vec()).unwrap();
-
-        Rc::new(Token::new(
-            current_file.line,
-            current_file.column - lexeme.len(),
+        Box::new(Token::new(
+            self.file.line,
+            self.file.column - lexeme.len(),
             ttype,
             lexeme,
-            &current_file.name,
+            &self.file.name,
         ))
     }
 
-    fn make_token_from(&self, ttype: TokenType, lexeme: &str) -> Rc<Token<'lexer>> {
-        let current_file = last!(self.files);
-
-        Rc::new(Token::new(
-            current_file.line,
+    fn make_token_from(&self, ttype: TokenType, lexeme: &str) -> Box<Token<'lexer>> {
+        Box::new(Token::new(
+            self.file.line,
             {
                 match ttype {
-                    TokenType::Unknown(ch) => current_file.column - ch.len_utf8(),
-                    _ => current_file.column - lexeme.len(),
+                    TokenType::Unknown(ch) => self.file.column - ch.len_utf8(),
+                    _ => self.file.column - lexeme.len(),
                 }
             },
             ttype,
             lexeme.to_owned(),
-            &current_file.name,
+            &self.file.name,
         ))
     }
 
-    fn make_number_token(&mut self) -> Rc<Token<'lexer>> {
-        while {
-            let curr = last!(self.files);
-            !curr.is_at_eof() && curr.peek().is_ascii_digit()
-        } {
+    fn make_number_token(&mut self) -> Box<Token<'lexer>> {
+        while !self.file.is_at_eof() && self.file.peek().is_ascii_digit() {
             self.advance();
         }
 
         if {
-            let curr = last!(self.files);
-            !curr.is_at_eof() && curr.peek() == b'.' && curr.peek_ahead(1).is_ascii_digit()
+            !self.file.is_at_eof()
+                && self.file.peek() == b'.'
+                && self.file.peek_ahead(1).is_ascii_digit()
         } {
             self.advance();
 
-            while {
-                let curr = last!(self.files);
-                !curr.is_at_eof() && curr.peek().is_ascii_digit()
-            } {
+            while !self.file.is_at_eof() && self.file.peek().is_ascii_digit() {
                 self.advance();
             }
 
@@ -337,13 +285,10 @@ impl<'lexer> Tokenizer<'lexer> {
         }
     }
 
-    fn make_string_token(&mut self) -> Rc<Token<'lexer>> {
+    fn make_string_token(&mut self) -> Box<Token<'lexer>> {
         let mut lexeme = String::new();
-        while {
-            let current = last!(self.files);
-            !current.is_at_eof() && current.peek() != b'"'
-        } {
-            if last!(self.files).peek() == b'\\' {
+        while !self.file.is_at_eof() && self.file.peek() != b'"' {
+            if self.file.peek() == b'\\' {
                 self.advance();
                 match self.advance() {
                     b'n' => lexeme += "\n",
@@ -364,9 +309,9 @@ impl<'lexer> Tokenizer<'lexer> {
             }
         }
 
-        if last!(self.files).is_at_eof() {
+        if self.file.is_at_eof() {
             self.make_token_from(
-                TokenType::Unknown(last!(self.files).peek() as char),
+                TokenType::Unknown(self.file.peek() as char),
                 "Unterminated string.",
             )
         } else {
@@ -375,20 +320,17 @@ impl<'lexer> Tokenizer<'lexer> {
         }
     }
 
-    fn make_identifier_token(&mut self) -> Rc<Token<'lexer>> {
-        while {
-            let current = last!(self.files);
-            !current.is_at_eof() && current.peek().is_ascii_alphanumeric()
-        } {
+    fn make_identifier_token(&mut self) -> Box<Token<'lexer>> {
+        while !self.file.is_at_eof() && self.file.peek().is_ascii_alphanumeric() {
             self.advance();
         }
 
-        let start: usize = last!(self.files).start;
-        let current: usize = last!(self.files).current;
-        let binding: Vec<u8> = last!(self.files).mmap[start..current].to_vec();
+        let start: usize = self.file.start;
+        let current: usize = self.file.current;
+        let binding: Vec<u8> = self.file.mmap[start..current].to_vec();
         let id = String::from_utf8_lossy(&binding);
 
-        (|lexeme: &str| -> Rc<Token<'lexer>> {
+        (|lexeme: &str| -> Box<Token<'lexer>> {
             lazy_static! {
                 static ref KEYWORD: HashMap<String, TokenType> = {
                     HashMap::from([
@@ -446,7 +388,6 @@ impl<'lexer> Tokenizer<'lexer> {
 #[allow(unused_imports)]
 mod tests {
     use crate::tokens::{token::Token, token_type::TokenType, tokenizer::Tokenizer};
-    use std::rc::Rc;
     use std::{fs::File as StdFile, io::Write};
 
     #[test]
@@ -460,42 +401,42 @@ mod tests {
 
         let scanned = lexer.get_all_tokens();
         let expected = vec![
-            Rc::new(Token::new(
+            Box::new(Token::new(
                 1,
                 0,
                 TokenType::Identifier,
                 "a".to_string(),
                 "single.file",
             )),
-            Rc::new(Token::new(
+            Box::new(Token::new(
                 1,
                 2,
                 TokenType::Identifier,
                 "b".to_string(),
                 "single.file",
             )),
-            Rc::new(Token::new(
+            Box::new(Token::new(
                 1,
                 4,
                 TokenType::Identifier,
                 "c".to_string(),
                 "single.file",
             )),
-            Rc::new(Token::new(
+            Box::new(Token::new(
                 1,
                 6,
                 TokenType::Identifier,
                 "d".to_string(),
                 "single.file",
             )),
-            Rc::new(Token::new(
+            Box::new(Token::new(
                 1,
                 8,
                 TokenType::Identifier,
                 "e".to_string(),
                 "single.file",
             )),
-            Rc::new(Token::new(
+            Box::new(Token::new(
                 1,
                 9,
                 TokenType::Eof,
@@ -510,78 +451,6 @@ mod tests {
         }
 
         std::fs::remove_file("single.file").unwrap();
-    }
-
-    #[test]
-    fn multiple_file_tokenization() {
-        StdFile::create("multiple_file_test1")
-            .unwrap()
-            .write_all(b"a b")
-            .unwrap();
-        StdFile::create("multiple_file_test2")
-            .unwrap()
-            .write_all(b"c d e")
-            .unwrap();
-
-        let mut lexer =
-            Tokenizer::new("multiple_file_test1").expect("Found error variant in Tokenizer init.");
-        lexer
-            .scan("multiple_file_test2")
-            .expect("Failed to add second file to the sources stack in Tokenizer.");
-
-        let scanned = lexer.get_all_tokens();
-        let expected = vec![
-            Rc::new(Token::new(
-                1,
-                0,
-                TokenType::Identifier,
-                "c".to_string(),
-                "multiple_file_test2",
-            )),
-            Rc::new(Token::new(
-                1,
-                2,
-                TokenType::Identifier,
-                "d".to_string(),
-                "multiple_file_test2",
-            )),
-            Rc::new(Token::new(
-                1,
-                4,
-                TokenType::Identifier,
-                "e".to_string(),
-                "multiple_file_test2",
-            )),
-            Rc::new(Token::new(
-                1,
-                0,
-                TokenType::Identifier,
-                "a".to_string(),
-                "multiple_file_test1",
-            )),
-            Rc::new(Token::new(
-                1,
-                2,
-                TokenType::Identifier,
-                "b".to_string(),
-                "multiple_file_test1",
-            )),
-            Rc::new(Token::new(
-                1,
-                3,
-                TokenType::Eof,
-                "".to_string(),
-                "multiple_file_test1",
-            )),
-        ];
-
-        assert_eq!(expected.len(), scanned.len());
-        for x in 0..scanned.len() {
-            assert_eq!(expected[x], scanned[x]);
-        }
-
-        std::fs::remove_file("multiple_file_test1").unwrap();
-        std::fs::remove_file("multiple_file_test2").unwrap();
     }
 
     #[test]
