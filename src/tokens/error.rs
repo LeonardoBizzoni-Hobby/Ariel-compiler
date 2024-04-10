@@ -1,3 +1,5 @@
+use std::any::Any;
+
 #[derive(Debug)]
 pub enum Error {
     FileNotFound(String, String),
@@ -8,5 +10,6 @@ pub enum Error {
 
 #[derive(Debug)]
 pub enum ParseError {
-    InvalidImport
+    InvalidImport,
+    ParseThreadJoin(Box<dyn Any + Send>),
 }

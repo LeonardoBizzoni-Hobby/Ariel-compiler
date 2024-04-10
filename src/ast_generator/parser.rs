@@ -33,19 +33,9 @@ pub fn parse(source: &str) -> Result<Vec<Box<Ast>>, Error> {
     let mut curr: Box<Token> = lexer.get_token();
     let mut prev: Box<Token> = Box::new(Token::empty());
 
-    loop {
+    // Actually parse loop
+    while curr.ttype != TokenType::Eof {
         match curr.ttype {
-            TokenType::Eof => {
-                while let Some(handle) = handlers.pop_front() {
-                    if handle.is_finished() {
-                        ast.append(&mut handle.join().unwrap()?);
-                    } else {
-                        handlers.push_back(handle);
-                    }
-                }
-
-                break;
-            }
             TokenType::Import => {
                 advance(&mut curr, &mut prev, &mut lexer);
 
@@ -57,10 +47,25 @@ pub fn parse(source: &str) -> Result<Vec<Box<Ast>>, Error> {
                 }
             }
             TokenType::Integer => ast.push(Box::new(Ast::Integer(curr.lexeme.parse().unwrap()))),
+            TokenType::Eof => {}
             _ => {}
         }
 
         advance(&mut curr, &mut prev, &mut lexer);
+    }
+
+    // After the parse loop wait for the other threads to finish if there are any
+    while let Some(handle) = handlers.pop_front() {
+        if handle.is_finished() {
+            ast.append(&mut {
+                match handle.join() {
+                    Ok(ast_data) => ast_data,
+                    Err(e) => Err(Error::Parser(ParseError::ParseThreadJoin(e))),
+                }
+            }?);
+        } else {
+            handlers.push_back(handle);
+        }
     }
 
     Ok(ast)
