@@ -1,5 +1,12 @@
 #[derive(Debug)]
-pub enum Error<'ctx> {
-    FileNotFound(&'ctx str, String),
-    MemoryMapFiled(&'ctx str, String),
+pub enum Error {
+    FileNotFound(String, String),
+    MemoryMapFiled(String, String),
+
+    Parser(ParseError),
+}
+
+#[derive(Debug)]
+pub enum ParseError {
+    InvalidImport
 }

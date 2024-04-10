@@ -5,27 +5,27 @@ use memmap2::Mmap;
 use super::error::Error;
 
 #[allow(dead_code)]
-pub struct Source<'lexer> {
+pub struct Source {
     pub line: usize,
     pub column: usize,
     pub start: usize,
     pub current: usize,
     pub finished: bool,
-    pub name: &'lexer str,
+    pub name: String,
     pub mmap: Mmap,
 }
 
-impl<'lexer> Source<'lexer> {
-    pub fn new(path: &'lexer str) -> Result<Self, Error> {
+impl Source {
+    pub fn new(path: &str) -> Result<Self, Error> {
         let file = match File::open(path) {
             Ok(file) => file,
-            Err(e) => return Err(Error::FileNotFound(path, e.to_string())),
+            Err(e) => return Err(Error::FileNotFound(path.to_owned(), e.to_string())),
         };
 
         let mmap = unsafe {
             match Mmap::map(&file) {
                 Ok(map) => map,
-                Err(e) => return Err(Error::MemoryMapFiled(path, e.to_string())),
+                Err(e) => return Err(Error::MemoryMapFiled(path.to_owned(), e.to_string())),
             }
         };
 
@@ -35,7 +35,7 @@ impl<'lexer> Source<'lexer> {
             start: 0,
             current: 0,
             finished: false,
-            name: path,
+            name: path.to_owned(),
             mmap,
         })
     }

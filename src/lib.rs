@@ -1,7 +1,8 @@
+use ast_generator::parser::parse;
 use clap::{Parser, Subcommand};
-use tokens::{error::Error, tokenizer::Tokenizer};
 
 mod tokens;
+mod ast_generator;
 
 #[derive(Parser)]
 pub struct Args {
@@ -21,15 +22,5 @@ pub fn repl() {
 }
 
 pub fn compile(source: &str) {
-    let mut lexer = match Tokenizer::new(source) {
-        Ok(lexer) => lexer,
-        Err(e) => match e {
-            Error::FileNotFound(path, os_error) | Error::MemoryMapFiled(path, os_error) => {
-                eprintln!("[{path}] :: {os_error}");
-                return;
-            }
-        },
-    };
-
-    println!("{:#?}", lexer.get_token());
+    println!("{:#?}", parse(source));
 }

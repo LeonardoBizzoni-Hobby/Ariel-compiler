@@ -4,20 +4,20 @@ use std::collections::HashMap;
 use super::{error::Error, source::Source, token::Token, token_type::TokenType};
 
 #[allow(dead_code)]
-pub struct Tokenizer<'lexer> {
-    file: Source<'lexer>,
+pub struct Tokenizer {
+    file: Source,
 }
 
 #[allow(dead_code)]
-impl<'lexer> Tokenizer<'lexer> {
-    pub fn new(source: &'lexer str) -> Result<Self, Error> {
+impl Tokenizer {
+    pub fn new(source: &str) -> Result<Self, Error> {
         Ok(Self {
             file: Source::new(source)?,
         })
     }
 
     #[cfg(test)]
-    pub fn get_all_tokens(&mut self) -> Vec<Box<Token<'lexer>>> {
+    pub fn get_all_tokens(&mut self) -> Vec<Box<Token>> {
         let mut res: Vec<Box<Token>> = vec![];
 
         loop {
@@ -29,7 +29,7 @@ impl<'lexer> Tokenizer<'lexer> {
         }
     }
 
-    pub fn get_token(&mut self) -> Box<Token<'lexer>> {
+    pub fn get_token(&mut self) -> Box<Token> {
         self.skip_whitespace();
 
         self.file.start = self.file.current;
@@ -233,7 +233,7 @@ impl<'lexer> Tokenizer<'lexer> {
         }
     }
 
-    fn make_token(&self, ttype: TokenType) -> Box<Token<'lexer>> {
+    fn make_token(&self, ttype: TokenType) -> Box<Token> {
         let start: usize = self.file.start;
         let current: usize = self.file.current;
 
@@ -244,11 +244,11 @@ impl<'lexer> Tokenizer<'lexer> {
             self.file.column - lexeme.len(),
             ttype,
             lexeme,
-            &self.file.name,
+            self.file.name.clone(),
         ))
     }
 
-    fn make_token_from(&self, ttype: TokenType, lexeme: &str) -> Box<Token<'lexer>> {
+    fn make_token_from(&self, ttype: TokenType, lexeme: &str) -> Box<Token> {
         Box::new(Token::new(
             self.file.line,
             {
@@ -259,11 +259,11 @@ impl<'lexer> Tokenizer<'lexer> {
             },
             ttype,
             lexeme.to_owned(),
-            &self.file.name,
+            self.file.name.clone(),
         ))
     }
 
-    fn make_number_token(&mut self) -> Box<Token<'lexer>> {
+    fn make_number_token(&mut self) -> Box<Token> {
         while !self.file.is_at_eof() && self.file.peek().is_ascii_digit() {
             self.advance();
         }
@@ -285,7 +285,7 @@ impl<'lexer> Tokenizer<'lexer> {
         }
     }
 
-    fn make_string_token(&mut self) -> Box<Token<'lexer>> {
+    fn make_string_token(&mut self) -> Box<Token> {
         let mut lexeme = String::new();
         while !self.file.is_at_eof() && self.file.peek() != b'"' {
             if self.file.peek() == b'\\' {
@@ -320,7 +320,7 @@ impl<'lexer> Tokenizer<'lexer> {
         }
     }
 
-    fn make_identifier_token(&mut self) -> Box<Token<'lexer>> {
+    fn make_identifier_token(&mut self) -> Box<Token> {
         while !self.file.is_at_eof() && self.file.peek().is_ascii_alphanumeric() {
             self.advance();
         }
@@ -330,7 +330,7 @@ impl<'lexer> Tokenizer<'lexer> {
         let binding: Vec<u8> = self.file.mmap[start..current].to_vec();
         let id = String::from_utf8_lossy(&binding);
 
-        (|lexeme: &str| -> Box<Token<'lexer>> {
+        (|lexeme: &str| -> Box<Token> {
             lazy_static! {
                 static ref KEYWORD: HashMap<String, TokenType> = {
                     HashMap::from([
@@ -406,42 +406,42 @@ mod tests {
                 0,
                 TokenType::Identifier,
                 "a".to_string(),
-                "single.file",
+                "single.file".to_owned(),
             )),
             Box::new(Token::new(
                 1,
                 2,
                 TokenType::Identifier,
                 "b".to_string(),
-                "single.file",
+                "single.file".to_owned(),
             )),
             Box::new(Token::new(
                 1,
                 4,
                 TokenType::Identifier,
                 "c".to_string(),
-                "single.file",
+                "single.file".to_owned(),
             )),
             Box::new(Token::new(
                 1,
                 6,
                 TokenType::Identifier,
                 "d".to_string(),
-                "single.file",
+                "single.file".to_owned(),
             )),
             Box::new(Token::new(
                 1,
                 8,
                 TokenType::Identifier,
                 "e".to_string(),
-                "single.file",
+                "single.file".to_owned(),
             )),
             Box::new(Token::new(
                 1,
                 9,
                 TokenType::Eof,
                 "".to_string(),
-                "single.file",
+                "single.file".to_owned(),
             )),
         ];
 
