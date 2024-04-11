@@ -22,6 +22,8 @@ use super::ast::Ast;
 pub fn parse(path: &str) -> Vec<Box<Ast>> {
     let mut ast: Vec<Box<Ast>> = vec![];
 
+    // TODO: use a Contex to check if the current file was already included
+    // and share it with every other parser-thread
     let mut source = match Source::new(path) {
         Ok(source) => source,
         Err(e) => match e {
