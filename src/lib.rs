@@ -1,10 +1,11 @@
-use ast_generator::parser::parse;
-use clap::{Parser, Subcommand};
+use clap::{Parser as ClapParser, Subcommand};
 
-mod tokens;
+use crate::ast_generator::parser;
+
 mod ast_generator;
+mod tokens;
 
-#[derive(Parser)]
+#[derive(ClapParser)]
 pub struct Args {
     pub source: Option<String>,
 
@@ -22,5 +23,13 @@ pub fn repl() {
 }
 
 pub fn compile(source: &str) {
-    println!("{:#?}", parse(source));
+    let start_timer = std::time::Instant::now();
+    let _ast = parser::parse(source);
+    let elapsed = start_timer.elapsed();
+    println!(
+        "Parsing took: {}ns ({}ms)",
+        elapsed.as_nanos(),
+        elapsed.as_millis()
+    );
+    // println!("{:#?}", ast);
 }

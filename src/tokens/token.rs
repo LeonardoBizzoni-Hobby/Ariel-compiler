@@ -31,8 +31,8 @@ impl Token {
             line: 0,
             column: 0,
             ttype: TokenType::Unknown('\0'),
-            lexeme: "\0".to_owned(),
-            found_in: "\0".to_owned(),
+            lexeme: "\0".to_string(),
+            found_in: "\0".to_string(),
         }
     }
 }

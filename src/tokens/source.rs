@@ -6,12 +6,13 @@ use super::error::Error;
 
 #[allow(dead_code)]
 pub struct Source {
+    pub name: String,
     pub line: usize,
     pub column: usize,
+    size: usize,
+
     pub start: usize,
     pub current: usize,
-    pub finished: bool,
-    pub name: String,
     pub mmap: Mmap,
 }
 
@@ -19,42 +20,44 @@ impl Source {
     pub fn new(path: &str) -> Result<Self, Error> {
         let file = match File::open(path) {
             Ok(file) => file,
-            Err(e) => return Err(Error::FileNotFound(path.to_owned(), e.to_string())),
+            Err(e) => return Err(Error::FileNotFound(path.to_string(), e.to_string())),
         };
 
         let mmap = unsafe {
             match Mmap::map(&file) {
                 Ok(map) => map,
-                Err(e) => return Err(Error::MemoryMapFiled(path.to_owned(), e.to_string())),
+                Err(e) => return Err(Error::MemoryMapFiled(path.to_string(), e.to_string())),
             }
         };
 
         Ok(Self {
             line: 1,
             column: 0,
+            size: mmap.len(),
             start: 0,
             current: 0,
-            finished: false,
-            name: path.to_owned(),
+            name: path.to_string(),
             mmap,
         })
     }
 
     pub fn is_at_eof(&self) -> bool {
-        self.current >= self.mmap.len()
+        self.current >= self.size
     }
 
     pub fn peek(&self) -> u8 {
-        match self.mmap.get(self.current) {
-            Some(byte) => *byte,
-            None => 0x00,
+        if !self.is_at_eof() {
+            self.mmap[self.current]
+        } else {
+            0
         }
     }
 
-    pub fn peek_ahead(&self, n: usize) -> u8 {
-        match self.mmap.get(self.current + n) {
-            Some(byte) => *byte,
-            None => 0x00,
+    pub fn peek_next(&self) -> u8 {
+        if self.current + 1 < self.size {
+            self.mmap[self.current + 1]
+        } else {
+            0
         }
     }
 }

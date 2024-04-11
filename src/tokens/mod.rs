@@ -1,4 +1,4 @@
-mod source;
+pub mod source;
 
 pub mod error;
 pub mod token;

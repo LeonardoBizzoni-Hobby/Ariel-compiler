@@ -1,15 +1,24 @@
-use std::any::Any;
+use super::token_type::TokenType;
 
 #[derive(Debug)]
 pub enum Error {
     FileNotFound(String, String),
     MemoryMapFiled(String, String),
-
-    Parser(ParseError),
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum ParseError {
-    InvalidImport,
-    ParseThreadJoin(Box<dyn Any + Send>),
+    UnexpectedToken {
+        line: usize,
+        col: usize,
+        found: TokenType,
+        expected: TokenType,
+        msg: Option<String>,
+    },
+    InvalidDataType {
+        line: usize,
+        col: usize,
+        data_type: TokenType,
+    },
 }
