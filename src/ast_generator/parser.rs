@@ -2,8 +2,8 @@ use crate::ast_generator::ast::{
     function::LbFunction, function_field::FunctionField, ScopeBoundStatement,
 };
 use std::{
-    collections::VecDeque,
-    sync::Arc,
+    collections::{HashSet, VecDeque},
+    sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
 
@@ -19,11 +19,27 @@ use crate::tokens::{
 
 use super::ast::Ast;
 
-pub fn parse(path: &str) -> Vec<Box<Ast>> {
+pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Box<Ast>> {
     let mut ast: Vec<Box<Ast>> = vec![];
 
-    // TODO: use a Contex to check if the current file was already included
-    // and share it with every other parser-thread
+    {
+        let mut mutex_data = match imported_files.lock() {
+            Ok(data) => data,
+            Err(e) => {
+                eprintln!("[{path}] :: {e}");
+                return vec![];
+            }
+        };
+
+        if mutex_data.contains(path) {
+            println!("[{path}] This file will be skipped since it was already imported.");
+            return vec![];
+        } else {
+            println!("[{path}] This is a new file and will be parsed.");
+            mutex_data.insert(path.to_owned());
+        }
+    }
+
     let mut source = match Source::new(path) {
         Ok(source) => source,
         Err(e) => match e {
@@ -50,7 +66,9 @@ pub fn parse(path: &str) -> Vec<Box<Ast>> {
                     continue;
                 } else {
                     let imported_path = curr.lexeme.clone();
-                    handlers.push_back(thread::spawn(move || parse(&imported_path)));
+                    let imported_files = Arc::clone(&imported_files);
+                    handlers
+                        .push_back(thread::spawn(move || parse(&imported_path, imported_files)));
                 }
 
                 advance(&mut curr, &mut prev, &mut source);
@@ -60,16 +78,14 @@ pub fn parse(path: &str) -> Vec<Box<Ast>> {
                     continue;
                 }
             }
-            TokenType::Fn => {
-                match define_function(&mut curr, &mut prev, &mut source) {
-                    Ok(function) => {
-                        ast.push(function);
-                    }
-                    Err(e) => {
-                        print_error(path, &prev.lexeme, e);
-                        global_synchronize(&mut curr, &mut prev, &mut source);
-                        continue;
-                    }
+            TokenType::Fn => match define_function(&mut curr, &mut prev, &mut source) {
+                Ok(function) => {
+                    ast.push(function);
+                }
+                Err(e) => {
+                    print_error(path, &prev.lexeme, e);
+                    global_synchronize(&mut curr, &mut prev, &mut source);
+                    continue;
                 }
             },
             TokenType::Eof => {}
