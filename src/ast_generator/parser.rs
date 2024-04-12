@@ -1,5 +1,5 @@
 use crate::ast_generator::ast::{
-    function::LbFunction, function_field::FunctionField, ScopeBoundStatement,
+    function::LbFunction, function_field::FunctionField, DataType, ScopeBoundStatement,
 };
 use std::{
     collections::{HashSet, VecDeque},
@@ -32,10 +32,8 @@ pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Box
         };
 
         if mutex_data.contains(path) {
-            println!("[{path}] This file will be skipped since it was already imported.");
             return vec![];
         } else {
-            println!("[{path}] This is a new file and will be parsed.");
             mutex_data.insert(path.to_owned());
         }
     }
@@ -118,12 +116,13 @@ pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Box
 fn define_function(
     curr: &mut Arc<Token>,
     prev: &mut Arc<Token>,
-    lexer: &mut Source,
+    source: &mut Source,
 ) -> Result<Box<Ast>, ParseError> {
     let mut function: LbFunction;
     let mut args: Vec<FunctionField> = vec![];
 
-    advance(curr, prev, lexer);
+    // fn -> fn_name
+    advance(curr, prev, source);
 
     if curr.ttype == TokenType::Main {
         function = LbFunction::make_main(curr.clone());
@@ -131,19 +130,20 @@ fn define_function(
         function = LbFunction::make_func(curr.clone());
     }
 
-    advance(curr, prev, lexer);
+    // fn_name -> (
+    advance(curr, prev, source);
     consume(curr, TokenType::LeftParen)?;
 
-    // Function argument parsing
-    advance(curr, prev, lexer);
-    while curr.ttype != TokenType::RightParen {
-        consume(curr, TokenType::Identifier)?;
+    // ( -> arg_name:datatype
+    advance(curr, prev, source);
 
-        args.push(parse_argument(curr, prev, lexer)?);
-        advance(curr, prev, lexer);
+    // Function argument parsing
+    while curr.ttype != TokenType::RightParen {
+        args.push(parse_argument(curr, prev, source)?);
 
         if curr.ttype == TokenType::Comma {
-            advance(curr, prev, lexer);
+            // , -> arg_name:datatype
+            advance(curr, prev, source);
         } else if curr.ttype != TokenType::RightParen {
             return Err(ParseError::UnexpectedToken {
                 line: curr.line,
@@ -156,27 +156,26 @@ fn define_function(
             });
         }
     }
+
+    // ) -> ->
+    // ) -> {
+    advance(curr, prev, source);
+
     function.args(args);
 
     // Return type parsing
-    advance(curr, prev, lexer);
     if curr.ttype == TokenType::Arrow {
-        advance(curr, prev, lexer);
-        if !is_datatype(&curr.ttype) {
-            return Err(ParseError::InvalidDataType {
-                line: curr.line,
-                col: curr.column,
-                data_type: curr.ttype.clone(),
-            });
-        }
+        // -> -> datatype
+        advance(curr, prev, source);
 
-        function.ret_type(curr.clone());
-        advance(curr, prev, lexer);
+        function.ret_type(parse_datatype(curr, prev, source)?);
     }
 
     // Function body parsing
     consume(curr, TokenType::LeftBrace)?;
-    function.body(parse_scope_block(curr, prev, lexer)?);
+    advance(curr, prev, source);
+
+    function.body(parse_scope_block(curr, prev, source)?);
 
     Ok(Box::new(Ast::Fn(function)))
 }
@@ -194,39 +193,97 @@ fn parse_argument(
     prev: &mut Arc<Token>,
     source: &mut Source,
 ) -> Result<FunctionField, ParseError> {
+    consume(curr, TokenType::Identifier)?;
     let field_name = curr.clone();
 
+    // arg_name -> :
     advance(curr, prev, source);
     consume(curr, TokenType::Colon)?;
+
+    // : -> datatype
     advance(curr, prev, source);
 
-    if !is_datatype(&curr.ttype) {
-        return Err(ParseError::InvalidDataType {
-            line: curr.line,
-            col: curr.column,
-            data_type: curr.ttype.clone(),
-        });
-    }
-
-    Ok(FunctionField::new(field_name, curr.clone()))
+    Ok(FunctionField::new(
+        field_name,
+        parse_datatype(curr, prev, source)?,
+    ))
 }
 
-fn is_datatype(ttype: &TokenType) -> bool {
-    matches!(
-        ttype,
-        TokenType::StringType
-            | TokenType::U8
-            | TokenType::U16
-            | TokenType::U32
-            | TokenType::U64
-            | TokenType::I8
-            | TokenType::I16
-            | TokenType::I32
-            | TokenType::I64
-            | TokenType::F32
-            | TokenType::F64
-            | TokenType::Bool
-    )
+fn parse_datatype(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<DataType, ParseError> {
+    match curr.ttype {
+        TokenType::U8 => Ok(check_pointer_datatype(DataType::U8, curr, prev, source)),
+        TokenType::U16 => Ok(check_pointer_datatype(DataType::U16, curr, prev, source)),
+        TokenType::U32 => Ok(check_pointer_datatype(DataType::U32, curr, prev, source)),
+        TokenType::U64 => Ok(check_pointer_datatype(DataType::U64, curr, prev, source)),
+        TokenType::I8 => Ok(check_pointer_datatype(DataType::I8, curr, prev, source)),
+        TokenType::I16 => Ok(check_pointer_datatype(DataType::I16, curr, prev, source)),
+        TokenType::I32 => Ok(check_pointer_datatype(DataType::I32, curr, prev, source)),
+        TokenType::I64 => Ok(check_pointer_datatype(DataType::I64, curr, prev, source)),
+        TokenType::F32 => Ok(check_pointer_datatype(DataType::F32, curr, prev, source)),
+        TokenType::F64 => Ok(check_pointer_datatype(DataType::F64, curr, prev, source)),
+        TokenType::Bool => Ok(check_pointer_datatype(DataType::Bool, curr, prev, source)),
+        TokenType::StringType => Ok(check_pointer_datatype(DataType::String, curr, prev, source)),
+        TokenType::Void => {
+            let datatype = check_pointer_datatype(DataType::Void, curr, prev, source);
+            if matches!(datatype, DataType::Pointer(_)) {
+                Ok(datatype)
+            } else {
+                Err(ParseError::InvalidDataType {
+                    line: curr.line,
+                    col: curr.column,
+                    found: curr.ttype.clone(),
+                    msg: Some(
+                        "`void` by itself isn't a valid datatype, it should have been a void pointer `void*`."
+                            .to_owned(),
+                    ),
+                })
+            }
+        }
+        TokenType::LeftSquare => {
+            advance(curr, prev, source);
+            let array_of: DataType = parse_datatype(curr, prev, source)?;
+
+            consume(curr, TokenType::RightSquare)?;
+            Ok(check_pointer_datatype(
+                DataType::Array(Box::new(array_of)),
+                curr,
+                prev,
+                source,
+            ))
+        }
+        _ => Err(ParseError::InvalidDataType {
+            line: curr.line,
+            col: curr.column,
+            found: curr.ttype.clone(),
+            msg: None,
+        }),
+    }
+}
+
+fn check_pointer_datatype(
+    datatype: DataType,
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> DataType {
+    let mut res = datatype;
+
+    // datatype -> *
+    // datatype -> ,
+    // datatype -> )
+    // datatype -> {
+    advance(curr, prev, source);
+
+    while matches!(curr.ttype, TokenType::Star) {
+        advance(curr, prev, source);
+        res = DataType::Pointer(Box::new(res));
+    }
+
+    res
 }
 
 fn global_synchronize(curr: &mut Arc<Token>, prev: &mut Arc<Token>, source: &mut Source) {
@@ -258,9 +315,10 @@ fn consume(curr: &Token, expected: TokenType) -> Result<(), ParseError> {
     }
 }
 
-fn advance(curr: &mut Arc<Token>, prev: &mut Arc<Token>, source: &mut Source) {
+fn advance(curr: &mut Arc<Token>, prev: &mut Arc<Token>, source: &mut Source) -> Arc<Token> {
     *prev = Arc::clone(curr);
     *curr = tokenizer::get_token(source);
+    Arc::clone(&prev)
 }
 
 fn print_error(source: &str, after: &str, e: ParseError) {
@@ -284,13 +342,18 @@ fn print_error(source: &str, after: &str, e: ParseError) {
         ParseError::InvalidDataType {
             line,
             col,
-            data_type,
+            found,
+            msg,
         } => {
-            eprintln!(
-                "[{}] :: {} is not a valid data type.",
-                format!("{source} {line}:{col}").red().bold(),
-                format!("{data_type}").red().italic()
-            );
+            if let Some(msg) = msg {
+                eprintln!("[{}] {msg}", format!("{source} {line}:{col}").red().bold());
+            } else {
+                eprintln!(
+                    "[{}] :: {} is not a valid data type.",
+                    format!("{source} {line}:{col}").red().bold(),
+                    format!("{found}").red().italic()
+                );
+            }
         }
     }
 }

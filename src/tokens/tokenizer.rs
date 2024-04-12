@@ -179,22 +179,22 @@ pub fn get_token(source: &mut Source) -> Arc<Token> {
             _ => make_token(TokenType::Slash, source),
         },
         b'*' => match source.peek() {
-            b'*' => {
-                advance(source);
-                match source.peek() {
-                    b'=' => {
-                        advance(source);
-                        make_token(TokenType::PowerEquals, source)
-                    }
-                    _ => make_token(TokenType::Power, source),
-                }
-            }
             b'=' => {
                 advance(source);
                 make_token(TokenType::StarEquals, source)
             }
             _ => make_token(TokenType::Star, source),
         },
+        b'^' => {
+            advance(source);
+            match source.peek() {
+                b'=' => {
+                    advance(source);
+                    make_token(TokenType::PowerEquals, source)
+                }
+                _ => make_token(TokenType::Power, source),
+            }
+        }
         0x00 => make_token(TokenType::Eof, source),
         ch => make_token(TokenType::Unknown(ch as char), source),
     }

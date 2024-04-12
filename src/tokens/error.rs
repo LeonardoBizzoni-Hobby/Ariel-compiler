@@ -19,6 +19,7 @@ pub enum ParseError {
     InvalidDataType {
         line: usize,
         col: usize,
-        data_type: TokenType,
+        found: TokenType,
+        msg: Option<String>,
     },
 }

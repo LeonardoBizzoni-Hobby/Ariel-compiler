@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::tokens::token::Token;
 
-use super::{function_field::FunctionField, ScopeBoundStatement};
+use super::{function_field::FunctionField, DataType, ScopeBoundStatement};
 
 #[derive(Debug)]
 #[allow(dead_code)]
@@ -10,7 +10,7 @@ pub struct LbFunction {
     is_main: bool,
     name: Arc<Token>,
     args: Vec<FunctionField>,
-    ret_type: Option<Arc<Token>>,
+    ret_type: Option<DataType>,
     body: Vec<ScopeBoundStatement>,
 }
 
@@ -44,7 +44,7 @@ impl LbFunction {
         self.body = body;
     }
 
-    pub fn ret_type(&mut self, ret_type: Arc<Token>) {
+    pub fn ret_type(&mut self, ret_type: DataType) {
         self.ret_type = Some(ret_type);
     }
 }
