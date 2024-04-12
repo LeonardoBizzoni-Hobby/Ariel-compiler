@@ -2,20 +2,20 @@ use std::sync::Arc;
 
 use crate::tokens::token::Token;
 
-use super::{function_field::FunctionField, DataType, ScopeBoundStatement};
+use super::{function_field::Argument, DataType, ScopeBoundStatement};
 
 #[derive(Debug)]
 #[allow(dead_code)]
-pub struct LbFunction {
+pub struct Function {
     is_main: bool,
     name: Arc<Token>,
-    args: Vec<FunctionField>,
+    args: Vec<Argument>,
     ret_type: Option<DataType>,
     body: Vec<ScopeBoundStatement>,
 }
 
 #[allow(dead_code)]
-impl LbFunction {
+impl Function {
     pub fn make_main(token: Arc<Token>) -> Self {
         Self {
             is_main: true,
@@ -36,7 +36,7 @@ impl LbFunction {
         }
     }
 
-    pub fn args(&mut self, args: Vec<FunctionField>) {
+    pub fn args(&mut self, args: Vec<Argument>) {
         self.args = args;
     }
 

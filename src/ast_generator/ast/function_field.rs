@@ -6,14 +6,14 @@ use super::DataType;
 
 #[derive(Debug)]
 #[allow(dead_code)]
-pub struct FunctionField {
+pub struct Argument {
     name: Arc<Token>,
-    ftype: DataType,
+    datatype: DataType,
 }
 
 #[allow(dead_code)]
-impl FunctionField {
-    pub fn new(name: Arc<Token>, ftype: DataType) -> Self {
-        Self { name, ftype }
+impl Argument {
+    pub fn new(name: Arc<Token>, datatype: DataType) -> Self {
+        Self { name, datatype }
     }
 }

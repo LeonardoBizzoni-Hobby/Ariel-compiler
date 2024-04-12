@@ -1,4 +1,4 @@
-use self::function::LbFunction;
+use self::function::Function;
 
 pub mod function_field;
 pub mod function;
@@ -10,7 +10,7 @@ pub enum ScopeBoundStatement {}
 #[allow(dead_code)]
 pub enum Ast {
     Integer(i32),
-    Fn(LbFunction),
+    Fn(Function),
 }
 
 #[derive(Debug)]
