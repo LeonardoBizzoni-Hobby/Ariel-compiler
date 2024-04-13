@@ -11,7 +11,7 @@ mod ast_generator;
 mod tokens;
 
 #[derive(ClapParser)]
-pub struct Args {
+pub struct CliArgs {
     pub source: Option<String>,
 
     #[command(subcommand)]

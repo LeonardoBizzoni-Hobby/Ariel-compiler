@@ -1,15 +1,15 @@
+use ariel::{CliArgs, Commands};
 use clap::Parser;
-use lang::{Args, repl, compile};
 
 fn main() {
-    let args = Args::parse();
+    let args = CliArgs::parse();
 
     match &args.commands {
-        Some(lang::Commands::Repl) => {
-            repl();
+        Some(Commands::Repl) => {
+            ariel::repl();
         },
         None => match args.source {
-            Some(source) => compile(&source),
+            Some(source) => ariel::compile(&source),
             None => eprintln!("You need to provide the path to the source file to compile!"),
         }
     }

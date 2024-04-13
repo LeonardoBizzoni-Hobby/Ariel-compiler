@@ -239,6 +239,7 @@ fn parse_scopebound_statement(
     _source: &mut Source,
 ) -> Result<ScopeBoundStatement, ParseError> {
     match curr.ttype {
+        TokenType::Let => todo!(),
         TokenType::Return => todo!(),
         TokenType::If => todo!(),
         TokenType::Match => todo!(),
