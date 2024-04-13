@@ -1,4 +1,3 @@
-use crate::ast_generator::ast::{function::Function, DataType, ScopeBoundStatement};
 use std::{
     collections::{HashSet, VecDeque},
     sync::{Arc, Mutex},
@@ -7,12 +6,15 @@ use std::{
 
 use colored::Colorize;
 
-use crate::tokens::{
-    error::{Error, ParseError},
-    source::Source,
-    token::Token,
-    token_type::TokenType,
-    tokenizer,
+use crate::{
+    ast_generator::ast::{function::Function, DataType, ScopeBoundStatement},
+    tokens::{
+        error::{Error, ParseError},
+        source::Source,
+        token::Token,
+        token_type::TokenType,
+        tokenizer,
+    },
 };
 
 use super::ast::{function_field::Argument, Ast};
@@ -178,14 +180,6 @@ fn parse_function_definition(
     Ok(Box::new(Ast::Fn(function)))
 }
 
-fn parse_scope_block(
-    _curr: &mut Arc<Token>,
-    _prev: &mut Arc<Token>,
-    _source: &mut Source,
-) -> Result<Vec<ScopeBoundStatement>, ParseError> {
-    Ok(vec![])
-}
-
 fn parse_argument(
     curr: &mut Arc<Token>,
     prev: &mut Arc<Token>,
@@ -205,6 +199,55 @@ fn parse_argument(
         field_name,
         parse_datatype(curr, prev, source)?,
     ))
+}
+
+fn parse_scope_block(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<Vec<ScopeBoundStatement>, ParseError> {
+    let mut body: Vec<ScopeBoundStatement> = vec![];
+
+    while !matches!(curr.ttype, TokenType::RightBrace | TokenType::Eof) {
+        body.push(
+            match parse_scopebound_statement(Arc::clone(curr), Arc::clone(prev), source) {
+                Ok(stmt) => stmt,
+                Err(e) => {
+                    print_error(&curr.found_in, "", e);
+
+                    while !matches!(curr.ttype, TokenType::Semicolon | TokenType::Eof) {
+                        advance(curr, prev, source);
+                    }
+
+                    // Consumes the `;`
+                    advance(curr, prev, source);
+                    continue;
+                }
+            },
+        )
+    }
+
+    require_token_type(&curr, TokenType::RightBrace)?;
+    advance(curr, prev, source);
+
+    Ok(body)
+}
+
+fn parse_scopebound_statement(
+    curr: Arc<Token>,
+    _prev: Arc<Token>,
+    _source: &mut Source,
+) -> Result<ScopeBoundStatement, ParseError> {
+    match curr.ttype {
+        TokenType::Return => todo!(),
+        TokenType::If => todo!(),
+        TokenType::Match => todo!(),
+        TokenType::Loop => todo!(),
+        TokenType::While => todo!(),
+        TokenType::For => todo!(),
+        TokenType::LeftBrace => todo!(),
+        _ => todo!(),
+    }
 }
 
 fn parse_datatype(
@@ -303,10 +346,9 @@ fn require_token_type(curr: &Token, expected: TokenType) -> Result<(), ParseErro
     }
 }
 
-fn advance(curr: &mut Arc<Token>, prev: &mut Arc<Token>, source: &mut Source) -> Arc<Token> {
+fn advance(curr: &mut Arc<Token>, prev: &mut Arc<Token>, source: &mut Source) {
     *prev = Arc::clone(curr);
     *curr = tokenizer::get_token(source);
-    Arc::clone(&prev)
 }
 
 fn global_synchronize(curr: &mut Arc<Token>, prev: &mut Arc<Token>, source: &mut Source) {
