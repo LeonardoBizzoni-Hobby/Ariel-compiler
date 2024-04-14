@@ -1,10 +1,45 @@
+use std::sync::Arc;
+
+use crate::tokens::token::Token;
+
 use self::function::Function;
 
-pub mod function_field;
 pub mod function;
+pub mod function_field;
 
 #[derive(Debug)]
-pub enum ScopeBoundStatement {}
+#[allow(dead_code)]
+pub enum ScopeBoundStatement {
+    VariableDeclaration(Box<Variable>),
+    Return(Expression),
+    Conditional,
+    Match,
+    Loop,
+    Expression(Expression),
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct Variable {
+    name: Arc<Token>,
+    datatype: Option<DataType>,
+    value: Expression,
+}
+
+impl Variable {
+    pub fn new(name: Arc<Token>, datatype: Option<DataType>, value: Expression) -> Self {
+        Self {
+            name,
+            datatype,
+            value,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Expression {
+    Tmp,
+}
 
 #[derive(Debug)]
 #[allow(dead_code)]

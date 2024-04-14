@@ -17,7 +17,7 @@ use crate::{
     },
 };
 
-use super::ast::{function_field::Argument, Ast};
+use super::ast::{function_field::Argument, Ast, Expression, Variable};
 
 pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Box<Ast>> {
     let mut ast: Vec<Box<Ast>> = vec![];
@@ -86,6 +86,9 @@ pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Box
                     continue;
                 }
             },
+            TokenType::Struct => {}
+            TokenType::Template => {}
+            TokenType::Enum => {}
             TokenType::Eof => {}
             _ => {}
         }
@@ -209,22 +212,20 @@ fn parse_scope_block(
     let mut body: Vec<ScopeBoundStatement> = vec![];
 
     while !matches!(curr.ttype, TokenType::RightBrace | TokenType::Eof) {
-        body.push(
-            match parse_scopebound_statement(Arc::clone(curr), Arc::clone(prev), source) {
-                Ok(stmt) => stmt,
-                Err(e) => {
-                    print_error(&curr.found_in, "", e);
+        body.push(match parse_scopebound_statement(curr, prev, source) {
+            Ok(stmt) => stmt,
+            Err(e) => {
+                print_error(&curr.found_in, &prev.lexeme, e);
 
-                    while !matches!(curr.ttype, TokenType::Semicolon | TokenType::Eof) {
-                        advance(curr, prev, source);
-                    }
-
-                    // Consumes the `;`
+                while !matches!(curr.ttype, TokenType::Semicolon | TokenType::Eof) {
                     advance(curr, prev, source);
-                    continue;
                 }
-            },
-        )
+
+                // Consumes the `;`
+                advance(curr, prev, source);
+                continue;
+            }
+        })
     }
 
     require_token_type(&curr, TokenType::RightBrace)?;
@@ -234,21 +235,107 @@ fn parse_scope_block(
 }
 
 fn parse_scopebound_statement(
-    curr: Arc<Token>,
-    _prev: Arc<Token>,
-    _source: &mut Source,
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
 ) -> Result<ScopeBoundStatement, ParseError> {
     match curr.ttype {
-        TokenType::Let => todo!(),
-        TokenType::Return => todo!(),
         TokenType::If => todo!(),
         TokenType::Match => todo!(),
         TokenType::Loop => todo!(),
         TokenType::While => todo!(),
         TokenType::For => todo!(),
-        TokenType::LeftBrace => todo!(),
-        _ => todo!(),
+        TokenType::LeftBrace => {
+            advance(curr, prev, source);
+            parse_scopebound_statement(curr, prev, source)
+        }
+        TokenType::Return => {
+            advance(curr, prev, source);
+
+            let expr: Expression = parse_expression(curr, prev, source)?;
+
+            require_token_type(curr, TokenType::Semicolon)?;
+            advance(curr, prev, source);
+
+            Ok(ScopeBoundStatement::Return(expr))
+        }
+        TokenType::Let => {
+            advance(curr, prev, source);
+
+            let variable: Box<Variable> = parse_variable_declaration(curr, prev, source)?;
+
+            require_token_type(curr, TokenType::Semicolon)?;
+            advance(curr, prev, source);
+
+            Ok(ScopeBoundStatement::VariableDeclaration(variable))
+        }
+        _ => {
+            let expr: Expression = parse_expression(curr, prev, source)?;
+
+            require_token_type(curr, TokenType::Semicolon)?;
+            advance(curr, prev, source);
+
+            Ok(ScopeBoundStatement::Expression(expr))
+        }
     }
+}
+
+fn parse_variable_declaration(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<Box<Variable>, ParseError> {
+    let variable_name = Arc::clone(curr);
+    advance(curr, prev, source);
+
+    match curr.ttype {
+        TokenType::Colon => {
+            advance(curr, prev, source);
+            let datatype = parse_datatype(curr, prev, source)?;
+
+            match require_token_type(curr, TokenType::Equal) {
+                Ok(_) => {
+                    advance(curr, prev, source);
+
+                    Ok(Box::new(Variable::new(
+                        variable_name,
+                        Some(datatype),
+                        parse_expression(curr, prev, source)?,
+                    )))
+                }
+                Err(_) => Err(ParseError::InvalidVariableDeclaration {
+                    line: curr.line,
+                    column: curr.column,
+                }),
+            }
+        }
+        TokenType::DynamicDefinition => {
+            advance(curr, prev, source);
+            Ok(Box::new(Variable::new(
+                variable_name,
+                None,
+                parse_expression(curr, prev, source)?,
+            )))
+        }
+        _ => {
+            return Err(ParseError::InvalidVariableDeclaration {
+                line: curr.line,
+                column: curr.column,
+            })
+        }
+    }
+}
+
+fn parse_expression(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<Expression, ParseError> {
+    while !matches!(curr.ttype, TokenType::Semicolon | TokenType::Eof) {
+        advance(curr, prev, source);
+    }
+
+    Ok(Expression::Tmp)
 }
 
 fn parse_datatype(
@@ -400,6 +487,12 @@ fn print_error(source: &str, after: &str, e: ParseError) {
                     format!("{found}").red().italic()
                 );
             }
+        }
+        ParseError::InvalidVariableDeclaration { line, column } => {
+            eprintln!(
+                "[{}] :: You can create a variable using a dynamic definition `:=` followed by the value to assign to the variable, or by specifying the datatype statically. You cannot create a variable without assign it a value.",
+                format!("{source} {line}:{column}").red().bold()
+            );
         }
     }
 }

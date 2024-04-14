@@ -22,4 +22,8 @@ pub enum ParseError {
         found: TokenType,
         msg: Option<String>,
     },
+    InvalidVariableDeclaration {
+        line: usize,
+        column: usize,
+    },
 }
