@@ -1,9 +1,11 @@
 use std::{
     collections::HashSet,
+    io::{self, Write},
     sync::{Arc, Mutex},
 };
 
 use clap::{Parser as ClapParser, Subcommand};
+use tempfile::NamedTempFile;
 
 use crate::ast_generator::parser;
 
@@ -24,7 +26,42 @@ pub enum Commands {
 }
 
 pub fn repl() {
-    todo!("REPL.")
+    let imported_files: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
+
+    loop {
+        let mut command = String::new();
+        print!("λ> ");
+        io::stdout().flush().unwrap();
+
+        if let Err(e) = io::stdin().read_line(&mut command) {
+            eprintln!("{e}");
+            break;
+        };
+
+        if command.trim().eq("quit") || command.trim().eq("exit") {
+            return;
+        } else {
+            let mut temp_file = match NamedTempFile::new() {
+                Ok(file) => file,
+                Err(e) => {
+                    eprintln!("{e}");
+                    return;
+                }
+            };
+
+            if let Err(e) = write!(temp_file, "{command}") {
+                eprintln!("{e}");
+                return;
+            };
+
+            let ast = parser::parse(
+                temp_file.path().to_str().unwrap(),
+                Arc::clone(&imported_files),
+            );
+
+            println!("{ast:?}");
+        }
+    }
 }
 
 pub fn compile(source: &str) {
