@@ -12,7 +12,11 @@ pub mod function_field;
 pub enum ScopeBoundStatement {
     VariableDeclaration(Box<Variable>),
     Return(Expression),
-    Conditional,
+    Conditional {
+        condition: Expression,
+        true_branch: Vec<ScopeBoundStatement>,
+        false_branch: Option<Vec<ScopeBoundStatement>>,
+    },
     Match,
     Loop,
     Expression(Expression),

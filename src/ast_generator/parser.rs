@@ -240,7 +240,7 @@ fn parse_scopebound_statement(
     source: &mut Source,
 ) -> Result<ScopeBoundStatement, ParseError> {
     match curr.ttype {
-        TokenType::If => todo!(),
+        TokenType::If => parse_conditional(curr, prev, source),
         TokenType::Match => todo!(),
         TokenType::Loop => todo!(),
         TokenType::While => todo!(),
@@ -277,6 +277,52 @@ fn parse_scopebound_statement(
 
             Ok(ScopeBoundStatement::Expression(expr))
         }
+    }
+}
+
+fn parse_conditional(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<ScopeBoundStatement, ParseError> {
+    let parse_branch = |curr: &mut Arc<Token>,
+                        prev: &mut Arc<Token>,
+                        source: &mut Source|
+     -> Result<Vec<ScopeBoundStatement>, ParseError> {
+        require_token_type(curr, TokenType::LeftBrace)?;
+        advance(curr, prev, source);
+
+        parse_scope_block(curr, prev, source)
+    };
+
+    advance(curr, prev, source);
+    let condition: Expression = parse_expression(curr, prev, source)?;
+
+    // ==================================================
+    // TODO: implement expression parsing and remove this
+    advance(curr, prev, source);
+    // ==================================================
+
+    let true_branch = parse_branch(curr, prev, source)?;
+
+    match curr.ttype {
+        TokenType::Else => {
+            advance(curr, prev, source);
+
+            Ok(ScopeBoundStatement::Conditional {
+                condition,
+                true_branch,
+                false_branch: Some(match curr.ttype {
+                    TokenType::If => vec![parse_conditional(curr, prev, source)?],
+                    _ => parse_branch(curr, prev, source)?,
+                }),
+            })
+        }
+        _ => Ok(ScopeBoundStatement::Conditional {
+            condition,
+            true_branch,
+            false_branch: None,
+        }),
     }
 }
 
