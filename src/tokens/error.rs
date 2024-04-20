@@ -26,4 +26,8 @@ pub enum ParseError {
         line: usize,
         column: usize,
     },
+    LoopBodyNotFound {
+        line: usize,
+        column: usize,
+    }
 }

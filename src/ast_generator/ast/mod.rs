@@ -18,7 +18,12 @@ pub enum ScopeBoundStatement {
         false_branch: Option<Vec<ScopeBoundStatement>>,
     },
     Match,
+    While {
+        condition: Expression,
+        body: Option<Vec<ScopeBoundStatement>>,
+    },
     Loop,
+    For,
     Expression(Expression),
 }
 
@@ -43,6 +48,7 @@ impl Variable {
 #[derive(Debug)]
 pub enum Expression {
     Tmp,
+    Boolean(Arc<Token>)
 }
 
 #[derive(Debug)]

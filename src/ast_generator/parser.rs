@@ -242,8 +242,8 @@ fn parse_scopebound_statement(
     match curr.ttype {
         TokenType::If => parse_conditional(curr, prev, source),
         TokenType::Match => todo!(),
-        TokenType::Loop => todo!(),
-        TokenType::While => todo!(),
+        TokenType::While => parse_while_loop(curr, prev, source),
+        TokenType::Loop => parse_loop(curr, prev, source),
         TokenType::For => todo!(),
         TokenType::LeftBrace => {
             advance(curr, prev, source);
@@ -277,6 +277,72 @@ fn parse_scopebound_statement(
 
             Ok(ScopeBoundStatement::Expression(expr))
         }
+    }
+}
+
+fn parse_loop(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<ScopeBoundStatement, ParseError> {
+    advance(curr, prev, source);
+    let condition = Expression::Boolean(Arc::new(Token::new(
+        curr.line,
+        curr.column,
+        TokenType::True,
+        "true".to_owned(),
+        curr.found_in.clone(),
+    )));
+
+    match curr.ttype {
+        TokenType::LeftBrace => {
+            advance(curr, prev, source);
+            Ok(ScopeBoundStatement::While {
+                condition,
+                body: Some(parse_scope_block(curr, prev, source)?),
+            })
+        }
+        TokenType::Semicolon => {
+            advance(curr, prev, source);
+            Ok(ScopeBoundStatement::While {
+                condition,
+                body: None,
+            })
+        }
+        _ => Err(ParseError::LoopBodyNotFound {
+            line: curr.line,
+            column: curr.column,
+        }),
+    }
+}
+
+fn parse_while_loop(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<ScopeBoundStatement, ParseError> {
+    advance(curr, prev, source);
+    let condition = parse_expression(curr, prev, source)?;
+
+    match curr.ttype {
+        TokenType::LeftBrace => {
+            advance(curr, prev, source);
+            Ok(ScopeBoundStatement::While {
+                condition,
+                body: Some(parse_scope_block(curr, prev, source)?),
+            })
+        }
+        TokenType::Semicolon => {
+            advance(curr, prev, source);
+            Ok(ScopeBoundStatement::While {
+                condition,
+                body: None,
+            })
+        }
+        _ => Err(ParseError::LoopBodyNotFound {
+            line: curr.line,
+            column: curr.column,
+        }),
     }
 }
 
@@ -539,6 +605,10 @@ fn print_error(source: &str, after: &str, e: ParseError) {
                 "[{}] :: You can create a variable using a dynamic definition `:=` followed by the value to assign to the variable, or by specifying the datatype statically. You cannot create a variable without assign it a value.",
                 format!("{source} {line}:{column}").red().bold()
             );
+        }
+        ParseError::LoopBodyNotFound { line, column } => {
+            eprintln!("[{}] :: After a loop there must be either a scope block representing the body of the loop or a `;` for a loop without a body.",
+                format!("{source} {line}:{column}").red().bold());
         }
     }
 }
