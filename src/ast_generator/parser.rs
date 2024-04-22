@@ -252,7 +252,7 @@ fn parse_scopebound_statement(
         TokenType::Return => {
             advance(curr, prev, source);
 
-            let expr: Expression = parse_expression(curr, prev, source)?;
+            let expr: Expression = or_expression(curr, prev, source)?;
 
             require_token_type(curr, TokenType::Semicolon)?;
             advance(curr, prev, source);
@@ -268,6 +268,22 @@ fn parse_scopebound_statement(
             advance(curr, prev, source);
 
             Ok(ScopeBoundStatement::VariableDeclaration(variable))
+        }
+        TokenType::Break => {
+            advance(curr, prev, source);
+
+            require_token_type(curr, TokenType::Semicolon)?;
+            advance(curr, prev, source);
+
+            Ok(ScopeBoundStatement::Break)
+        }
+        TokenType::Continue => {
+            advance(curr, prev, source);
+
+            require_token_type(curr, TokenType::Semicolon)?;
+            advance(curr, prev, source);
+
+            Ok(ScopeBoundStatement::Continue)
         }
         _ => {
             let expr: Expression = parse_expression(curr, prev, source)?;
@@ -286,13 +302,15 @@ fn parse_loop(
     source: &mut Source,
 ) -> Result<ScopeBoundStatement, ParseError> {
     advance(curr, prev, source);
-    let condition = Expression::Boolean(Arc::new(Token::new(
-        curr.line,
-        curr.column,
-        TokenType::True,
-        "true".to_owned(),
-        curr.found_in.clone(),
-    )));
+    let condition = Expression::Literal {
+        literal: Arc::new(Token::new(
+            curr.line,
+            curr.column,
+            TokenType::True,
+            "true".to_owned(),
+            curr.found_in.clone(),
+        )),
+    };
 
     match curr.ttype {
         TokenType::LeftBrace => {
@@ -362,13 +380,7 @@ fn parse_conditional(
     };
 
     advance(curr, prev, source);
-    let condition: Expression = parse_expression(curr, prev, source)?;
-
-    // ==================================================
-    // TODO: implement expression parsing and remove this
-    advance(curr, prev, source);
-    // ==================================================
-
+    let condition: Expression = or_expression(curr, prev, source)?;
     let true_branch = parse_branch(curr, prev, source)?;
 
     match curr.ttype {
@@ -412,7 +424,7 @@ fn parse_variable_declaration(
                     Ok(Box::new(Variable::new(
                         variable_name,
                         Some(datatype),
-                        parse_expression(curr, prev, source)?,
+                        or_expression(curr, prev, source)?,
                     )))
                 }
                 Err(_) => Err(ParseError::InvalidVariableDeclaration {
@@ -443,11 +455,282 @@ fn parse_expression(
     prev: &mut Arc<Token>,
     source: &mut Source,
 ) -> Result<Expression, ParseError> {
-    while !matches!(curr.ttype, TokenType::Semicolon | TokenType::Eof) {
-        advance(curr, prev, source);
+    assignment_expression(curr, prev, source)
+}
+
+fn assignment_expression(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<Expression, ParseError> {
+    let left: Expression = or_expression(curr, prev, source)?;
+
+    match curr.ttype {
+        TokenType::Equal
+        | TokenType::PlusEquals
+        | TokenType::MinusEquals
+        | TokenType::StarEquals
+        | TokenType::SlashEquals
+        | TokenType::PowerEquals
+        | TokenType::ShiftLeftEqual
+        | TokenType::ShiftRightEqual => {
+            let _operation = Arc::clone(curr);
+            advance(curr, prev, source);
+            let _value: Expression = or_expression(curr, prev, source)?;
+
+            match left {
+                Expression::Variable { name: _ } => todo!(),
+                Expression::GetField { from: _, get: _ } => todo!(),
+                _ => Err(ParseError::InvalidAssignmentExpression {
+                    token: Arc::clone(curr),
+                }),
+            }
+        }
+        TokenType::Question => {
+            let condition: Box<Expression> = Box::new(left);
+            advance(curr, prev, source);
+
+            let true_branch: Box<Expression> = Box::new(assignment_expression(curr, prev, source)?);
+
+            require_token_type(curr, TokenType::Colon)?;
+            advance(curr, prev, source);
+
+            Ok(Expression::Ternary {
+                condition,
+                true_branch,
+                false_branch: Box::new(assignment_expression(curr, prev, source)?),
+            })
+        }
+        _ => Ok(left),
+    }
+}
+
+fn or_expression(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<Expression, ParseError> {
+    let mut left: Expression = and_expression(curr, prev, source)?;
+
+    while matches!(curr.ttype, TokenType::Or | TokenType::BitOr) {
+        left = Expression::Binary {
+            left: Box::new(left),
+            operation: Arc::clone(&advance(curr, prev, source)),
+            right: Box::new(and_expression(curr, prev, source)?),
+        };
     }
 
-    Ok(Expression::Tmp)
+    Ok(left)
+}
+
+fn and_expression(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<Expression, ParseError> {
+    let mut left: Expression = equality_check(curr, prev, source)?;
+
+    while matches!(curr.ttype, TokenType::And | TokenType::BitAnd) {
+        let operation = Arc::clone(curr);
+        advance(curr, prev, source);
+
+        left = Expression::Binary {
+            left: Box::new(left),
+            operation,
+            right: Box::new(equality_check(curr, prev, source)?),
+        };
+    }
+
+    Ok(left)
+}
+
+fn equality_check(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<Expression, ParseError> {
+    let mut left: Expression = comparison_check(curr, prev, source)?;
+
+    while matches!(curr.ttype, TokenType::EqualEqual | TokenType::BangEqual) {
+        left = Expression::Binary {
+            left: Box::new(left),
+            operation: Arc::clone(&advance(curr, prev, source)),
+            right: Box::new(comparison_check(curr, prev, source)?),
+        };
+    }
+
+    Ok(left)
+}
+
+fn comparison_check(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<Expression, ParseError> {
+    let mut left: Expression = term(curr, prev, source)?;
+
+    while matches!(
+        curr.ttype,
+        TokenType::Greater | TokenType::GreaterEqual | TokenType::Less | TokenType::LessEqual
+    ) {
+        let operation = Arc::clone(curr);
+        advance(curr, prev, source);
+
+        left = Expression::Binary {
+            left: Box::new(left),
+            operation,
+            right: Box::new(term(curr, prev, source)?),
+        };
+    }
+
+    Ok(left)
+}
+
+fn term(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<Expression, ParseError> {
+    let mut left: Expression = factor(curr, prev, source)?;
+
+    while matches!(
+        curr.ttype,
+        TokenType::Plus
+            | TokenType::Minus
+            | TokenType::Mod
+            | TokenType::ShiftLeft
+            | TokenType::ShiftRight
+    ) {
+        let operation = Arc::clone(curr);
+        advance(curr, prev, source);
+
+        left = Expression::Binary {
+            left: Box::new(left),
+            operation,
+            right: Box::new(factor(curr, prev, source)?),
+        };
+    }
+
+    Ok(left)
+}
+
+fn factor(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<Expression, ParseError> {
+    let mut left: Expression = unary(curr, prev, source)?;
+
+    while matches!(
+        curr.ttype,
+        TokenType::Star | TokenType::Slash | TokenType::Power
+    ) {
+        let operation = Arc::clone(curr);
+        advance(curr, prev, source);
+
+        left = Expression::Binary {
+            left: Box::new(left),
+            operation,
+            right: Box::new(unary(curr, prev, source)?),
+        };
+    }
+
+    Ok(left)
+}
+
+fn unary(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<Expression, ParseError> {
+    match curr.ttype {
+        TokenType::Bang | TokenType::Minus => Ok(Expression::Unary {
+            operation: Arc::clone(curr),
+            value: Box::new(unary(curr, prev, source)?),
+        }),
+        _ => call(curr, prev, source),
+    }
+}
+
+fn call(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<Expression, ParseError> {
+    let mut expr: Expression = primary(curr, prev, source)?;
+
+    loop {
+        match curr.ttype {
+            TokenType::LeftParen => {
+                let mut args: Vec<Expression> = vec![];
+                advance(curr, prev, source);
+
+                if !matches!(curr.ttype, TokenType::RightParen) {
+                    args.push(parse_expression(curr, prev, source)?);
+
+                    while !matches!(curr.ttype, TokenType::Comma) {
+                        advance(curr, prev, source);
+                        args.push(parse_expression(curr, prev, source)?);
+                    }
+                }
+
+                require_token_type(curr, TokenType::RightParen)?;
+                expr = Expression::FnCall {
+                    fn_identifier: Box::new(expr),
+                    args,
+                };
+            }
+            TokenType::Dot => {
+                advance(curr, prev, source);
+
+                require_token_type(curr, TokenType::Identifier)?;
+                let property = Arc::clone(curr);
+                advance(curr, prev, source);
+
+                expr = Expression::GetField {
+                    from: Box::new(expr),
+                    get: property,
+                };
+            }
+            _ => break,
+        }
+    }
+
+    Ok(expr)
+}
+
+fn primary(
+    curr: &mut Arc<Token>,
+    prev: &mut Arc<Token>,
+    source: &mut Source,
+) -> Result<Expression, ParseError> {
+    match curr.ttype {
+        TokenType::This => {
+            advance(curr, prev, source);
+            Ok(Expression::This)
+        }
+        TokenType::Identifier => Ok(Expression::Variable {
+            name: advance(curr, prev, source),
+        }),
+        TokenType::Integer
+        | TokenType::Double
+        | TokenType::String
+        | TokenType::True
+        | TokenType::False
+        | TokenType::Nil => Ok(Expression::Literal {
+            literal: advance(curr, prev, source),
+        }),
+        TokenType::LeftParen => {
+            advance(curr, prev, source);
+            let nested = Box::new(parse_expression(curr, prev, source)?);
+
+            require_token_type(curr, TokenType::RightParen)?;
+            Ok(Expression::Nested { nested })
+        }
+        _ => Err(ParseError::InvalidExpression {
+            token: Arc::clone(curr),
+        }),
+    }
 }
 
 fn parse_datatype(
@@ -546,9 +829,11 @@ fn require_token_type(curr: &Token, expected: TokenType) -> Result<(), ParseErro
     }
 }
 
-fn advance(curr: &mut Arc<Token>, prev: &mut Arc<Token>, source: &mut Source) {
+fn advance(curr: &mut Arc<Token>, prev: &mut Arc<Token>, source: &mut Source) -> Arc<Token> {
     *prev = Arc::clone(curr);
     *curr = tokenizer::get_token(source);
+
+    Arc::clone(prev)
 }
 
 fn global_synchronize(curr: &mut Arc<Token>, prev: &mut Arc<Token>, source: &mut Source) {
@@ -609,6 +894,22 @@ fn print_error(source: &str, after: &str, e: ParseError) {
         ParseError::LoopBodyNotFound { line, column } => {
             eprintln!("[{}] :: After a loop there must be either a scope block representing the body of the loop or a `;` for a loop without a body.",
                 format!("{source} {line}:{column}").red().bold());
+        }
+        ParseError::InvalidAssignmentExpression { token } => {
+            eprintln!(
+                "[{}] :: Invalid assignment expression, RTFM!",
+                format!("{} {}:{}", token.found_in, token.line, token.column)
+                    .red()
+                    .bold()
+            );
+        }
+        ParseError::InvalidExpression { token } =>{
+            eprintln!(
+                "[{}] :: Invalid expression, RTFM!",
+                format!("{} {}:{}", token.found_in, token.line, token.column)
+                .red()
+                .bold()
+            );
         }
     }
 }

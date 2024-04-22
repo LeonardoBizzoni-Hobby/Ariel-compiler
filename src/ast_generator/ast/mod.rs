@@ -25,6 +25,8 @@ pub enum ScopeBoundStatement {
     Loop,
     For,
     Expression(Expression),
+    Break,
+    Continue,
 }
 
 #[derive(Debug)]
@@ -47,8 +49,38 @@ impl Variable {
 
 #[derive(Debug)]
 pub enum Expression {
-    Tmp,
-    Boolean(Arc<Token>)
+    Variable {
+        name: Arc<Token>,
+    },
+    GetField {
+        from: Box<Expression>,
+        get: Arc<Token>,
+    },
+    Ternary {
+        condition: Box<Expression>,
+        true_branch: Box<Expression>,
+        false_branch: Box<Expression>,
+    },
+    Binary {
+        left: Box<Expression>,
+        operation: Arc<Token>,
+        right: Box<Expression>,
+    },
+    Unary {
+        operation: Arc<Token>,
+        value: Box<Expression>,
+    },
+    FnCall {
+        fn_identifier: Box<Expression>,
+        args: Vec<Expression>,
+    },
+    This,
+    Literal {
+        literal: Arc<Token>,
+    },
+    Nested {
+        nested: Box<Expression>,
+    },
 }
 
 #[derive(Debug)]

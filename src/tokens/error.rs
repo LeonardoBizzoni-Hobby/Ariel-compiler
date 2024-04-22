@@ -1,4 +1,6 @@
-use super::token_type::TokenType;
+use std::sync::Arc;
+
+use super::{token::Token, token_type::TokenType};
 
 #[derive(Debug)]
 pub enum Error {
@@ -29,5 +31,11 @@ pub enum ParseError {
     LoopBodyNotFound {
         line: usize,
         column: usize,
-    }
+    },
+    InvalidAssignmentExpression {
+        token: Arc<Token>,
+    },
+    InvalidExpression {
+        token: Arc<Token>,
+    },
 }
