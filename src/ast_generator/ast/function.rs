@@ -1,8 +1,11 @@
+use crate::{
+    ast_generator::ast::{
+        function_arg::Argument, scopebound_statements::ScopeBoundStatement, variables::DataType,
+    },
+    tokens::token::Token,
+};
+
 use std::sync::Arc;
-
-use crate::tokens::token::Token;
-
-use super::{function_field::Argument, DataType, ScopeBoundStatement};
 
 #[derive(Debug)]
 #[allow(dead_code)]

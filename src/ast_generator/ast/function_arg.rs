@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use crate::tokens::token::Token;
 
-use super::DataType;
+use super::variables::DataType;
 
 #[derive(Debug)]
 #[allow(dead_code)]

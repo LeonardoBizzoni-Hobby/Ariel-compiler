@@ -7,7 +7,12 @@ use std::{
 use colored::Colorize;
 
 use crate::{
-    ast_generator::ast::{function::Function, DataType, ScopeBoundStatement},
+    ast_generator::ast::{
+        expressions::Expression,
+        function::Function,
+        scopebound_statements::ScopeBoundStatement,
+        variables::{DataType, Variable},
+    },
     tokens::{
         error::{Error, ParseError},
         source::Source,
@@ -17,7 +22,7 @@ use crate::{
     },
 };
 
-use super::ast::{function_field::Argument, Ast, Expression, Variable};
+use super::ast::{function_arg::Argument, Ast};
 
 pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Box<Ast>> {
     let mut ast: Vec<Box<Ast>> = vec![];
@@ -903,12 +908,12 @@ fn print_error(source: &str, after: &str, e: ParseError) {
                     .bold()
             );
         }
-        ParseError::InvalidExpression { token } =>{
+        ParseError::InvalidExpression { token } => {
             eprintln!(
                 "[{}] :: Invalid expression, RTFM!",
                 format!("{} {}:{}", token.found_in, token.line, token.column)
-                .red()
-                .bold()
+                    .red()
+                    .bold()
             );
         }
     }
