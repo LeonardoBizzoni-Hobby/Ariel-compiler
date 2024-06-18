@@ -3,43 +3,34 @@ use std::sync::Arc;
 use colored::Colorize;
 
 use crate::tokens::{
-    error::ParseError, source::Source, token::Token, token_type::TokenType, tokenizer,
+    error::ParseError, token::Token, token_type::TokenType, tokenizer,
 };
 
-use super::ast::variables::DataType;
+use super::{ast::variables::DataType, parser_head::ParserHead};
 
-pub fn parse_datatype(
-    curr: &mut Arc<Token>,
-    prev: &mut Arc<Token>,
-    source: &mut Source,
-) -> Result<DataType, ParseError> {
-    match curr.ttype {
-        TokenType::U8 => Ok(handle_pointer_datatype(DataType::U8, curr, prev, source)),
-        TokenType::U16 => Ok(handle_pointer_datatype(DataType::U16, curr, prev, source)),
-        TokenType::U32 => Ok(handle_pointer_datatype(DataType::U32, curr, prev, source)),
-        TokenType::U64 => Ok(handle_pointer_datatype(DataType::U64, curr, prev, source)),
-        TokenType::I8 => Ok(handle_pointer_datatype(DataType::I8, curr, prev, source)),
-        TokenType::I16 => Ok(handle_pointer_datatype(DataType::I16, curr, prev, source)),
-        TokenType::I32 => Ok(handle_pointer_datatype(DataType::I32, curr, prev, source)),
-        TokenType::I64 => Ok(handle_pointer_datatype(DataType::I64, curr, prev, source)),
-        TokenType::F32 => Ok(handle_pointer_datatype(DataType::F32, curr, prev, source)),
-        TokenType::F64 => Ok(handle_pointer_datatype(DataType::F64, curr, prev, source)),
-        TokenType::Bool => Ok(handle_pointer_datatype(DataType::Bool, curr, prev, source)),
-        TokenType::StringType => Ok(handle_pointer_datatype(
-            DataType::String,
-            curr,
-            prev,
-            source,
-        )),
+pub fn parse_datatype(head: &mut ParserHead) -> Result<DataType, ParseError> {
+    match head.curr.ttype {
+        TokenType::U8 => Ok(handle_pointer_datatype(DataType::U8, head)),
+        TokenType::U16 => Ok(handle_pointer_datatype(DataType::U16, head)),
+        TokenType::U32 => Ok(handle_pointer_datatype(DataType::U32, head)),
+        TokenType::U64 => Ok(handle_pointer_datatype(DataType::U64, head)),
+        TokenType::I8 => Ok(handle_pointer_datatype(DataType::I8, head)),
+        TokenType::I16 => Ok(handle_pointer_datatype(DataType::I16, head)),
+        TokenType::I32 => Ok(handle_pointer_datatype(DataType::I32, head)),
+        TokenType::I64 => Ok(handle_pointer_datatype(DataType::I64, head)),
+        TokenType::F32 => Ok(handle_pointer_datatype(DataType::F32, head)),
+        TokenType::F64 => Ok(handle_pointer_datatype(DataType::F64, head)),
+        TokenType::Bool => Ok(handle_pointer_datatype(DataType::Bool, head)),
+        TokenType::StringType => Ok(handle_pointer_datatype(DataType::String, head)),
         TokenType::Void => {
-            let datatype = handle_pointer_datatype(DataType::Void, curr, prev, source);
+            let datatype = handle_pointer_datatype(DataType::Void, head);
             if matches!(datatype, DataType::Pointer(_)) {
                 Ok(datatype)
             } else {
                 Err(ParseError::InvalidDataType {
-                    line: curr.line,
-                    col: curr.column,
-                    found: curr.ttype.clone(),
+                    line: head.curr.line,
+                    col: head.curr.column,
+                    found: head.curr.ttype.clone(),
                     msg: Some(
                         "`void` by itself isn't a valid datatype, it should have been a void pointer `void*`."
                             .to_owned(),
@@ -48,42 +39,32 @@ pub fn parse_datatype(
             }
         }
         TokenType::LeftSquare => {
-            advance(curr, prev, source);
-            let array_of: DataType = parse_datatype(curr, prev, source)?;
+            advance(head);
+            let array_of: DataType = parse_datatype(head)?;
 
-            require_token_type(curr, TokenType::RightSquare)?;
-            Ok(handle_pointer_datatype(
-                DataType::Array(Box::new(array_of)),
-                curr,
-                prev,
-                source,
-            ))
+            require_token_type(head.curr, TokenType::RightSquare)?;
+            Ok(handle_pointer_datatype(DataType::Array(Box::new(array_of)), head))
         }
         _ => Err(ParseError::InvalidDataType {
-            line: curr.line,
-            col: curr.column,
-            found: curr.ttype.clone(),
+            line: head.curr.line,
+            col: head.curr.column,
+            found: head.curr.ttype.clone(),
             msg: None,
         }),
     }
 }
 
-fn handle_pointer_datatype(
-    datatype: DataType,
-    curr: &mut Arc<Token>,
-    prev: &mut Arc<Token>,
-    source: &mut Source,
-) -> DataType {
+fn handle_pointer_datatype(datatype: DataType, head: &mut ParserHead) -> DataType {
     let mut res = datatype;
 
     // datatype -> *
     // datatype -> ,
     // datatype -> )
     // datatype -> {
-    advance(curr, prev, source);
+    advance(head);
 
-    while matches!(curr.ttype, TokenType::Star) {
-        advance(curr, prev, source);
+    while matches!(head.curr.ttype, TokenType::Star) {
+        advance(head);
         res = DataType::Pointer(Box::new(res));
     }
 
@@ -104,11 +85,10 @@ pub fn require_token_type(curr: &Token, expected: TokenType) -> Result<(), Parse
     }
 }
 
-pub fn advance(curr: &mut Arc<Token>, prev: &mut Arc<Token>, source: &mut Source) -> Arc<Token> {
-    *prev = Arc::clone(curr);
-    *curr = tokenizer::get_token(source);
-
-    Arc::clone(prev)
+#[inline(always)]
+pub fn advance(head: &mut ParserHead) {
+    *head.prev = Arc::clone(head.curr);
+    *head.curr = tokenizer::get_token(head.source);
 }
 
 pub fn print_error(source: &str, after: &str, e: ParseError) {
@@ -170,6 +150,17 @@ pub fn print_error(source: &str, after: &str, e: ParseError) {
                     .red()
                     .bold()
             );
+        }
+        ParseError::InvalidIterator { token, msg } => {
+            if let Some(msg) = msg {
+                eprintln!("[{}] {msg}", format!("{} {}:{}", token.found_in, token.line, token.column).red().bold());
+            } else {
+                eprintln!(
+                    "[{}] :: {} is not a valid iterator.",
+                    format!("{} {}:{}", token.found_in, token.line, token.column).red().bold(),
+                    format!("{} ({})", token.lexeme, token.ttype).red().italic()
+                );
+            }
         }
     }
 }

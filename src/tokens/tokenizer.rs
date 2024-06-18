@@ -1,4 +1,4 @@
-use super::{source::Source, token::Token, token_type::TokenType};
+use super::{source::SourceFile, token::Token, token_type::TokenType};
 use lazy_static::lazy_static;
 use std::{collections::HashMap, sync::Arc};
 
@@ -14,21 +14,15 @@ lazy_static! {
             ("false".to_owned(), TokenType::False),
             ("fn".to_owned(), TokenType::Fn),
             ("for".to_owned(), TokenType::For),
-            ("foreach".to_owned(), TokenType::ForEach),
             ("if".to_owned(), TokenType::If),
-            ("in".to_owned(), TokenType::In),
             ("import".to_owned(), TokenType::Import),
             ("let".to_owned(), TokenType::Let),
             ("loop".to_owned(), TokenType::Loop),
             ("main".to_owned(), TokenType::Main),
             ("match".to_owned(), TokenType::Match),
             ("nil".to_owned(), TokenType::Nil),
-            ("namespace".to_owned(), TokenType::Namespace),
-            ("pub".to_owned(), TokenType::Public),
             ("return".to_owned(), TokenType::Return),
             ("struct".to_owned(), TokenType::Struct),
-            ("template".to_owned(), TokenType::Template),
-            ("this".to_owned(), TokenType::This),
             ("true".to_owned(), TokenType::True),
             ("void".to_owned(), TokenType::Void),
             ("while".to_owned(), TokenType::While),
@@ -47,12 +41,13 @@ lazy_static! {
     };
 }
 
-pub fn get_token(source: &mut Source) -> Arc<Token> {
+pub fn get_token(source: &mut SourceFile) -> Arc<Token> {
     skip_whitespace(source);
 
     source.start = source.current;
 
     match advance(source) {
+        0 => make_token(TokenType::Eof, source),
         b'"' => make_string_token(source),
         b'0'..=b'9' => make_number_token(source),
         b'a'..=b'z' | b'A'..=b'Z' | b'_' => make_identifier_token(source),
@@ -90,9 +85,9 @@ pub fn get_token(source: &mut Source) -> Arc<Token> {
         b'!' => match source.peek() {
             b'=' => {
                 advance(source);
-                make_token(TokenType::BangEqual, source)
+                make_token(TokenType::NotEqual, source)
             }
-            _ => make_token(TokenType::Bang, source),
+            _ => make_token(TokenType::Not, source),
         },
         b'=' => match source.peek() {
             b'=' => {
@@ -195,28 +190,27 @@ pub fn get_token(source: &mut Source) -> Arc<Token> {
                 _ => make_token(TokenType::Power, source),
             }
         }
-        0x00 => make_token(TokenType::Eof, source),
         ch => make_token(TokenType::Unknown(ch as char), source),
     }
 }
 
-fn make_token(ttype: TokenType, source: &mut Source) -> Arc<Token> {
+fn make_token(ttype: TokenType, source: &mut SourceFile) -> Arc<Token> {
     let start: usize = source.start;
     let current: usize = source.current;
 
     let binding: Vec<u8> = source.mmap[start..current].to_vec();
-    let lexeme = String::from_utf8_lossy(&binding);
+    let lexeme: String = String::from_utf8_lossy(&binding).to_string();
 
     Arc::new(Token::new(
         source.line,
         source.column - lexeme.len(),
         ttype,
-        lexeme.to_string(),
+        lexeme,
         source.name.clone(),
     ))
 }
 
-fn make_number_token(source: &mut Source) -> Arc<Token> {
+fn make_number_token(source: &mut SourceFile) -> Arc<Token> {
     while source.peek().is_ascii_digit() {
         advance(source);
     }
@@ -234,68 +228,75 @@ fn make_number_token(source: &mut Source) -> Arc<Token> {
     }
 }
 
-fn make_string_token(source: &mut Source) -> Arc<Token> {
-    let mut lexeme = String::new();
+fn make_string_token(source: &mut SourceFile) -> Arc<Token> {
+    let mut lexeme: String = String::new();
     while source.peek() != b'"' {
-        if source.peek() == b'\\' {
-            advance(source);
-            match advance(source) {
-                b'n' => lexeme += "\n",
-                b't' => lexeme += "\t",
-                b'r' => lexeme += "\r",
-                b'\'' => lexeme += "\'",
-                b'"' => lexeme += "\"",
-                b'\\' => lexeme += "\\",
-                ch => {
-                    return make_token_from(
-                        TokenType::Unknown(ch as char),
-                        "Invalid escape sequence.",
-                        source
-                    )
+        match source.peek() {
+            0 => break,
+            b'\\' => {
+                advance(source);
+                match advance(source) {
+                    b'n' => lexeme += "\n",
+                    b't' => lexeme += "\t",
+                    b'r' => lexeme += "\r",
+                    b'\'' => lexeme += "\'",
+                    b'"' => lexeme += "\"",
+                    b'\\' => lexeme += "\\",
+                    ch => {
+                        return make_token_from(
+                            TokenType::Unknown(ch as char),
+                            "Invalid escape sequence.",
+                            source
+                        )
+                    }
                 }
-            }
-        } else {
-            lexeme += &String::from_utf8(vec![advance(source)]).unwrap();
+            },
+            _ => lexeme += &{
+                match String::from_utf8(vec![advance(source)]) {
+                    Ok(t) => t,
+                    Err(_) => return make_token_from(TokenType::InvalidByteSequenceToString, &lexeme, source),
+                }
+            },
         }
     }
 
-    if source.is_at_eof() {
-        make_token_from(
-            TokenType::Unknown(source.peek() as char),
-            "Unterminated string.",
-            source,
-        )
-    } else {
-        advance(source);
-        make_token_from(TokenType::String, &lexeme, source)
+    match source.peek() {
+        b'"' => {
+            advance(source);
+            make_token_from(TokenType::String, &lexeme, source)
+        }
+        // i don't think this can assume any other value than 0
+        unexpected_char => {
+            make_token_from(
+                TokenType::Unknown(unexpected_char as char),
+                "Unterminated string.",
+                source,
+            )
+        },
     }
 }
 
-fn make_identifier_token(source: &mut Source) -> Arc<Token> {
+fn make_identifier_token(source: &mut SourceFile) -> Arc<Token> {
     while source.peek().is_ascii_alphanumeric() || source.peek() == b'_' {
         advance(source);
     }
 
     let start: usize = source.start;
     let current: usize = source.current;
-    let binding: Vec<u8> = source.mmap[start..current].to_vec();
-    let id = String::from_utf8_lossy(&binding);
+    let identifier: String = String::from_utf8_lossy(&source.mmap[start..current]).to_string();
 
-    (|lexeme: &str| -> Arc<Token> {
-        if let Some(token_type) = KEYWORD.get(lexeme) {
-            make_token(token_type.clone(), source)
-        } else {
-            make_token(TokenType::Identifier, source)
-        }
-    })(&id)
+    match KEYWORD.get(&identifier) {
+        Some(token_type) => make_token(token_type.clone(), source),
+        None => make_token(TokenType::Identifier, source),
+    }
 }
 
-fn make_token_from(ttype: TokenType, lexeme: &str, source: &mut Source) -> Arc<Token> {
+fn make_token_from(ttype: TokenType, lexeme: &str, source: &mut SourceFile) -> Arc<Token> {
     Arc::new(Token::new(
         source.line,
         {
             match ttype {
-                TokenType::Unknown(ch) => source.column - ch.len_utf8(),
+                TokenType::Unknown(_) => source.column - 1,
                 _ => source.column - lexeme.len(),
             }
         },
@@ -305,8 +306,8 @@ fn make_token_from(ttype: TokenType, lexeme: &str, source: &mut Source) -> Arc<T
     ))
 }
 
-fn skip_whitespace(source: &mut Source) {
-    while !source.is_at_eof() {
+fn skip_whitespace(source: &mut SourceFile) {
+    loop {
         match source.peek() {
             b'\n' | b'\r' => {
                 advance(source);
@@ -318,21 +319,26 @@ fn skip_whitespace(source: &mut Source) {
                 advance(source);
             }
             b'#' => {
-                if source.peek_next() == b'#' {
-                    advance(source);
-
-                    while !(source.peek() == b'#' && source.peek_next() == b'#') {
-                        if matches!(advance(source), b'\n' | b'\r') {
-                            source.line += 1;
-                            source.column = 0;
-                        }
-                    }
-
-                    advance(source);
-                    advance(source);
-                } else {
-                    while source.peek() != b'\n' {
+                match source.peek_next() {
+                    // Multi-line comment
+                    b'#' => {
                         advance(source);
+
+                        while !(source.peek() == b'#' && source.peek_next() == b'#') {
+                            if matches!(advance(source), b'\n' | b'\r') {
+                                source.line += 1;
+                                source.column = 0;
+                            }
+                        }
+
+                        advance(source);
+                        advance(source);
+                    }
+                    // Single line comment
+                    _ => {
+                        while source.peek() != b'\n' {
+                            advance(source);
+                        }
                     }
                 }
             }
@@ -341,15 +347,15 @@ fn skip_whitespace(source: &mut Source) {
     }
 }
 
-fn advance(source: &mut Source) -> u8 {
-    let peek = source.peek();
-
-    if peek != 0x00 {
-        source.current += 1;
-        source.column += 1;
-        peek
-    } else {
-        peek
+#[inline(always)]
+fn advance(source: &mut SourceFile) -> u8 {
+    match source.peek() {
+        0 => 0,
+        value => {
+            source.current += 1;
+            source.column += 1;
+            value
+        }
     }
 }
 

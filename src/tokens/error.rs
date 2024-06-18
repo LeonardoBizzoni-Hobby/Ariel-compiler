@@ -38,4 +38,5 @@ pub enum ParseError {
     InvalidExpression {
         token: Arc<Token>,
     },
+    InvalidIterator { token: Arc<Token>, msg: Option<String> },
 }

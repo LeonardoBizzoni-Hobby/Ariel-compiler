@@ -5,19 +5,18 @@ use crate::tokens::token::Token;
 use super::expressions::Expression;
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub struct Variable {
-    name: Arc<Token>,
-    datatype: Option<DataType>,
-    value: Expression,
+    _name: Arc<Token>,
+    _datatype: Option<DataType>,
+    _value: Expression,
 }
 
 impl Variable {
     pub fn new(name: Arc<Token>, datatype: Option<DataType>, value: Expression) -> Self {
         Self {
-            name,
-            datatype,
-            value,
+            _name: name,
+            _datatype: datatype,
+            _value: value,
         }
     }
 }

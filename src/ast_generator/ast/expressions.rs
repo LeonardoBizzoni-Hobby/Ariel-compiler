@@ -29,7 +29,6 @@ pub enum Expression {
         fn_identifier: Box<Expression>,
         args: Vec<Expression>,
     },
-    This,
     Literal {
         literal: Arc<Token>,
     },

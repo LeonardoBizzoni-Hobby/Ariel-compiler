@@ -1,5 +1,7 @@
 use std::fmt::Display;
 
+use colored::Colorize;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum TokenType {
     Eof,
@@ -25,8 +27,8 @@ pub enum TokenType {
     Question,
 
     Mod,
-    Bang,
-    BangEqual,
+    Not,
+    NotEqual,
     Equal,
     EqualEqual,
     Greater,
@@ -83,27 +85,23 @@ pub enum TokenType {
     Enum,
     Fn,
     For,
-    ForEach,
     If,
-    In,
     Import,
     Let,
     Loop,
     Main,
-    Namespace,
-    Public,
     Return,
     Struct,
-    Template,
-    This,
     While,
+    InvalidByteSequenceToString,
 }
 
 impl Display for TokenType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TokenType::Eof => write!(f, "EOF"),
-            TokenType::Unknown(ch) => write!(f, "unknown symbol {ch}"),
+            TokenType::Eof => write!(f, "{}", "EOF".red()),
+            TokenType::Unknown(ch) => write!(f, "{} {ch}", "[Unknown Symbol]".red()),
+            TokenType::InvalidByteSequenceToString => write!(f, "{}", "[InvalidByteSequenceToString]".red()),
             TokenType::LeftParen => write!(f, "("),
             TokenType::RightParen => write!(f, ")"),
             TokenType::LeftSquare => write!(f, "["),
@@ -121,8 +119,8 @@ impl Display for TokenType {
             TokenType::StaticScopeGetter => write!(f, "::"),
             TokenType::Question => write!(f, "?"),
             TokenType::Mod => write!(f, "mod"),
-            TokenType::Bang => write!(f, "!"),
-            TokenType::BangEqual => write!(f, "!="),
+            TokenType::Not => write!(f, "!"),
+            TokenType::NotEqual => write!(f, "!="),
             TokenType::Equal => write!(f, "="),
             TokenType::EqualEqual => write!(f, "=="),
             TokenType::Greater => write!(f, ">"),
@@ -175,19 +173,13 @@ impl Display for TokenType {
             TokenType::Enum => write!(f, "enum"),
             TokenType::Fn => write!(f, "fn"),
             TokenType::For => write!(f, "for"),
-            TokenType::ForEach => write!(f, "foreach"),
             TokenType::If => write!(f, "if"),
-            TokenType::In => write!(f, "in"),
             TokenType::Import => write!(f, "import"),
             TokenType::Let => write!(f, "let"),
             TokenType::Loop => write!(f, "loop"),
             TokenType::Main => write!(f, "main"),
-            TokenType::Namespace => write!(f, "namespace"),
-            TokenType::Public => write!(f, "pub"),
             TokenType::Return => write!(f, "return"),
             TokenType::Struct => write!(f, "struct"),
-            TokenType::Template => write!(f, "template"),
-            TokenType::This => write!(f, "this"),
             TokenType::While => write!(f, "while"),
             TokenType::Bool => write!(f, "boolean"),
         }

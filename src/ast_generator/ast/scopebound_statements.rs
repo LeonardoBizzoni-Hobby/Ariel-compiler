@@ -1,7 +1,6 @@
 use super::{expressions::Expression, variables::Variable};
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub enum ScopeBoundStatement {
     VariableDeclaration(Box<Variable>),
     Return(Expression),
