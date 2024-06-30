@@ -1,6 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{ast_generator::expression_parser, tokens::{error::ParseError, token::Token, token_type::TokenType}};
+use crate::{
+    ast_generator::expression_parser,
+    tokens::{error::ParseError, token::Token, token_type::TokenType},
+};
 
 use super::{
     ast::{
@@ -20,12 +23,16 @@ pub fn parse_scope_block(head: &mut ParserHead) -> Result<ScopeBoundStatement, P
             Err(e) => {
                 utils::print_error(&head.curr.found_in, &head.prev.lexeme, e);
 
-                while !matches!(head.curr.ttype, TokenType::Semicolon | TokenType::Eof) {
+                while !matches!(
+                    head.curr.ttype,
+                    TokenType::Semicolon | TokenType::RightBrace | TokenType::Eof
+                ) {
                     utils::advance(head);
                 }
 
-                // Consumes the `;`
-                utils::advance(head);
+                if matches!(head.curr.ttype, TokenType::Semicolon) {
+                    utils::advance(head);
+                }
             }
         }
     }
@@ -79,7 +86,7 @@ pub fn parse_scopebound_statement(
 
             Ok(ScopeBoundStatement::Continue)
         }
-        _ => parse_expression_statement(head)
+        _ => parse_expression_statement(head),
     }
 }
 
@@ -129,21 +136,21 @@ fn parse_for(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
         TokenType::Semicolon => {
             utils::advance(head);
             None
-        },
-        _ => Some(Box::new(parse_expression_statement(head)?))
+        }
+        _ => Some(Box::new(parse_expression_statement(head)?)),
     };
 
     let condition: Option<Box<ScopeBoundStatement>> = match head.curr.ttype {
         TokenType::Semicolon => {
             utils::advance(head);
             None
-        },
-        _ => Some(Box::new(parse_expression_statement(head)?))
+        }
+        _ => Some(Box::new(parse_expression_statement(head)?)),
     };
 
     let increment: Option<Expression> = match head.curr.ttype {
         TokenType::RightParen => None,
-        _ => Some(parse_expression(head)?)
+        _ => Some(parse_expression(head)?),
     };
 
     utils::require_token_type(&head.curr, TokenType::RightParen)?;
@@ -153,7 +160,12 @@ fn parse_for(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
     utils::advance(head);
     let body: Box<ScopeBoundStatement> = Box::new(parse_scope_block(head)?);
 
-    Ok(ScopeBoundStatement::For { initialization, condition, increment, body })
+    Ok(ScopeBoundStatement::For {
+        initialization,
+        condition,
+        increment,
+        body,
+    })
 }
 
 pub fn parse_loop(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
@@ -184,7 +196,7 @@ pub fn parse_loop(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseErr
             })
         }
         _ => Err(ParseError::LoopBodyNotFound {
-            body: Arc::clone(head.curr)
+            body: Arc::clone(head.curr),
         }),
     }
 }
@@ -209,7 +221,7 @@ pub fn parse_while_loop(head: &mut ParserHead) -> Result<ScopeBoundStatement, Pa
             })
         }
         _ => Err(ParseError::LoopBodyNotFound {
-            body: Arc::clone(head.curr)
+            body: Arc::clone(head.curr),
         }),
     }
 }
@@ -247,7 +259,9 @@ pub fn parse_conditional(head: &mut ParserHead) -> Result<ScopeBoundStatement, P
     }
 }
 
-pub fn parse_variable_declaration(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
+pub fn parse_variable_declaration(
+    head: &mut ParserHead,
+) -> Result<ScopeBoundStatement, ParseError> {
     let variable_name = Arc::clone(head.curr);
     utils::advance(head);
 
@@ -266,10 +280,12 @@ pub fn parse_variable_declaration(head: &mut ParserHead) -> Result<ScopeBoundSta
                         or_expression(head)?,
                     ))
                 }
-                Err(_) => return Err(ParseError::InvalidVariableDeclaration {
-                    line: head.curr.line,
-                    column: head.curr.column,
-                }),
+                Err(_) => {
+                    return Err(ParseError::InvalidVariableDeclaration {
+                        line: head.curr.line,
+                        column: head.curr.column,
+                    })
+                }
             }
         }
         TokenType::DynamicDefinition => {
@@ -292,4 +308,198 @@ pub fn parse_variable_declaration(head: &mut ParserHead) -> Result<ScopeBoundSta
     utils::advance(head);
 
     Ok(variable)
+}
+
+#[allow(unused_imports)]
+#[allow(dead_code)]
+mod tests {
+    use crate::{
+        test_util::{create_test_file, delete_test_file},
+        tokens::{source::SourceFile, tokenizer},
+    };
+
+    use super::*;
+    use std::{fs::File, io::Write, ops::Deref};
+
+    fn parse(file_name: &str, content: &str) -> Result<ScopeBoundStatement, ParseError> {
+        create_test_file(file_name, content);
+        let mut file = SourceFile::new(file_name).unwrap();
+
+        let mut curr = tokenizer::get_token(&mut file);
+        let mut prev = Arc::new(Token::empty());
+        let mut head = ParserHead::new(&mut curr, &mut prev, &mut file);
+
+        let res = parse_scopebound_statement(&mut head);
+
+        delete_test_file(file_name);
+
+        res
+    }
+
+    #[test]
+    fn scope_not_closed() {
+        let found = parse("invalid_scope", "{ 3 + 4;");
+        assert!(found.is_err());
+
+        match found.err().unwrap() {
+            ParseError::UnexpectedToken {
+                line,
+                col,
+                found,
+                expected,
+                ..
+            } => {
+                assert_eq!(1, line);
+                assert_eq!(8, col);
+                assert_eq!(TokenType::Eof, found);
+                assert_eq!(TokenType::RightBrace, expected);
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn invalid_stmt_in_invalid_subscope() {
+        let found = parse("invalid_stmt_in_invalid_subscope", "{ {3 + 4 }");
+        assert!(found.is_err());
+
+        match found.err().unwrap() {
+            ParseError::UnexpectedToken {
+                line,
+                col,
+                found,
+                expected,
+                ..
+            } => {
+                assert_eq!(1, line);
+                assert_eq!(10, col);
+                assert_eq!(TokenType::Eof, found);
+                assert_eq!(TokenType::RightBrace, expected);
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn invalid_stmt_in_scope() {
+        let found = parse("invalid_stmt_in_scope", "{ {3 + 4} }");
+        assert!(found.is_ok());
+
+        if let ScopeBoundStatement::Scope(body) = found.ok().unwrap() {
+            assert!(!body.is_empty());
+            assert!(body.get(0).is_some());
+
+            if let ScopeBoundStatement::Scope(inner) = &body[0] {
+                assert!(inner.is_empty());
+                return;
+            }
+        }
+
+        panic!()
+    }
+
+    #[test]
+    fn valid_scope() {
+        let found = parse("valid_scope", "{ { 3 + 4; } }");
+        assert!(found.is_ok());
+
+        if let ScopeBoundStatement::Scope(body) = found.ok().unwrap() {
+            assert!(!body.is_empty());
+            assert!(body.get(0).is_some());
+
+            if let ScopeBoundStatement::Scope(inner_body) = &body[0] {
+                assert!(!inner_body.is_empty());
+                assert!(inner_body.get(0).is_some());
+
+                if let ScopeBoundStatement::Expression(expr) = &inner_body[0] {
+                    if let Expression::Binary {
+                        left,
+                        operation,
+                        right,
+                    } = &expr
+                    {
+                        if let (
+                            Expression::Literal { literal: left_lit },
+                            Expression::Literal { literal: right_lit },
+                        ) = ((*left).as_ref(), (*right).as_ref())
+                        {
+                            assert_eq!("3", left_lit.lexeme);
+                            assert_eq!(TokenType::Plus, operation.ttype);
+                            assert_eq!("4", right_lit.lexeme);
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
+        panic!()
+    }
+
+    #[test]
+    fn invalid_continue() {
+        let found = parse("invalid_continue", "continue");
+        assert!(found.is_err());
+
+        match found.err().unwrap() {
+            ParseError::UnexpectedToken {
+                line,
+                col,
+                found,
+                expected,
+                ..
+            } => {
+                assert_eq!(1, line);
+                assert_eq!(8, col);
+                assert_eq!(TokenType::Eof, found);
+                assert_eq!(TokenType::Semicolon, expected);
+            }
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn valid_continue() {
+        let found = parse("valid_continue", "continue;");
+        assert!(found.is_ok());
+
+        match found.ok().unwrap() {
+            ScopeBoundStatement::Continue => {}
+            _ => panic!(),
+        }
+    }
+
+    #[test]
+    fn invalid_break() {
+        let found = parse("invalid_break", "break");
+        assert!(found.is_err());
+
+        if let ParseError::UnexpectedToken {
+            line,
+            col,
+            found,
+            expected,
+            ..
+        } = found.err().unwrap()
+        {
+            assert_eq!(1, line);
+            assert_eq!(5, col);
+            assert_eq!(TokenType::Eof, found);
+            assert_eq!(TokenType::Semicolon, expected);
+            return;
+        }
+
+        panic!()
+    }
+
+    #[test]
+    fn valid_break() {
+        let found = parse("valid_break", "break;");
+        assert!(found.is_ok());
+
+        match found.ok().unwrap() {
+            ScopeBoundStatement::Break => {}
+            _ => panic!(),
+        }
+    }
 }

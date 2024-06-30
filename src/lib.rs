@@ -5,6 +5,7 @@ use std::{
 
 use crate::ast_generator::parser;
 
+mod test_util;
 mod ast_generator;
 mod tokens;
 

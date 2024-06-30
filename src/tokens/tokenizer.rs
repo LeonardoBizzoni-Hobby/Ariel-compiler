@@ -373,17 +373,9 @@ fn advance(source: &mut SourceFile) -> u8 {
 #[allow(unused_imports)]
 #[allow(dead_code)]
 mod tests {
+    use crate::test_util::{create_test_file, delete_test_file};
     use super::*;
     use std::{fs::File, io::Write};
-
-    fn create_test_file(name: &str, content: &str) {
-        let mut file = File::create(name).unwrap();
-        file.write_all(content.as_bytes()).unwrap();
-    }
-
-    fn delete_test_file(path: &str) {
-        std::fs::remove_file(path).unwrap();
-    }
 
     fn scan_file(path: &str) -> Vec<Arc<Token>> {
         let mut scanned: Vec<Arc<Token>> = vec![];
