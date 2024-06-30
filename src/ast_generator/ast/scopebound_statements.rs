@@ -3,19 +3,27 @@ use super::{expressions::Expression, variables::Variable};
 #[derive(Debug)]
 pub enum ScopeBoundStatement {
     Scope(Vec<ScopeBoundStatement>),
-    VariableDeclaration(Box<Variable>),
+    VariableDeclaration(Variable),
     Return(Expression),
     Conditional {
         condition: Expression,
         true_branch: Box<ScopeBoundStatement>,
         false_branch: Option<Box<ScopeBoundStatement>>,
     },
-    Match,
+    Match {
+        on: Expression,
+        cases: Vec<(Expression, ScopeBoundStatement)>,
+    },
     While {
         condition: Expression,
         body: Option<Box<ScopeBoundStatement>>,
     },
-    For,
+    For {
+        initialization: Option<Box<ScopeBoundStatement>>,
+        condition: Option<Box<ScopeBoundStatement>>,
+        increment: Option<Expression>,
+        body: Box<ScopeBoundStatement>,
+    },
     Expression(Expression),
     Break,
     Continue,

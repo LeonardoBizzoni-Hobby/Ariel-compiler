@@ -245,3 +245,28 @@ pub fn primary(head: &mut ParserHead) -> Result<Expression, ParseError> {
         }),
     }
 }
+
+pub fn match_pattern_expression(head: &mut ParserHead) -> Result<Expression, ParseError> {
+    match head.curr.ttype {
+        TokenType::Identifier => {
+            utils::advance(head);
+            Ok(Expression::Name {
+                name: Arc::clone(head.prev),
+            })
+        }
+        TokenType::Integer
+        | TokenType::Double
+        | TokenType::String
+        | TokenType::True
+        | TokenType::False
+        | TokenType::Nil => {
+            utils::advance(head);
+            Ok(Expression::Literal {
+                literal: Arc::clone(head.prev),
+            })
+        }
+        _ => Err(ParseError::InvalidExpression {
+            token: Arc::clone(head.curr),
+        }),
+    }
+}
