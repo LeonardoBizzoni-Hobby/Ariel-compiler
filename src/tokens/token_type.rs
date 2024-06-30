@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use colored::Colorize;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub enum TokenType {
     Eof,
     Unknown(char),

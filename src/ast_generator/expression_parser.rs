@@ -216,7 +216,7 @@ pub fn get(head: &mut ParserHead) -> Result<Expression, ParseError> {
 
 pub fn primary(head: &mut ParserHead) -> Result<Expression, ParseError> {
     match head.curr.ttype {
-        TokenType::Identifier => {
+        TokenType::Identifier | TokenType::DontCare => {
             utils::advance(head);
             Ok(Expression::Name {
                 name: Arc::clone(head.prev),
@@ -248,7 +248,7 @@ pub fn primary(head: &mut ParserHead) -> Result<Expression, ParseError> {
 
 pub fn match_pattern_expression(head: &mut ParserHead) -> Result<Expression, ParseError> {
     match head.curr.ttype {
-        TokenType::Identifier => {
+        TokenType::Identifier | TokenType::DontCare => {
             utils::advance(head);
             Ok(Expression::Name {
                 name: Arc::clone(head.prev),

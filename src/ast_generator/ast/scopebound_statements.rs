@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use super::{expressions::Expression, variables::Variable};
 
 #[derive(Debug)]
@@ -12,7 +14,7 @@ pub enum ScopeBoundStatement {
     },
     Match {
         on: Expression,
-        cases: Vec<(Expression, ScopeBoundStatement)>,
+        cases: HashMap<Expression, ScopeBoundStatement>,
     },
     While {
         condition: Expression,

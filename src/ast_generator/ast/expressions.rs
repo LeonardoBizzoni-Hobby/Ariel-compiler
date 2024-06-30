@@ -2,7 +2,7 @@ use std::{fmt::Display, sync::Arc};
 
 use crate::tokens::token::Token;
 
-#[derive(Debug)]
+#[derive(Debug, Hash, PartialEq, Eq)]
 pub enum Expression {
     Name {
         name: Arc<Token>,

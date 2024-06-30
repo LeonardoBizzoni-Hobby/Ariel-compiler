@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{ast_generator::expression_parser, tokens::{error::ParseError, token::Token, token_type::TokenType}};
 
@@ -91,7 +91,7 @@ fn parse_match(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError>
     utils::require_token_type(&head.curr, TokenType::LeftBrace)?;
     utils::advance(head);
 
-    let mut cases: Vec<(Expression, ScopeBoundStatement)> = vec![];
+    let mut cases: HashMap<Expression, ScopeBoundStatement> = HashMap::new();
     while !matches!(head.curr.ttype, TokenType::RightBrace) {
         let case: Expression = expression_parser::match_pattern_expression(head)?;
 
@@ -102,7 +102,7 @@ fn parse_match(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError>
         utils::advance(head);
 
         let value: ScopeBoundStatement = parse_scope_block(head)?;
-        cases.push((case, value));
+        cases.insert(case, value);
     }
 
     Ok(ScopeBoundStatement::Match { on, cases })
