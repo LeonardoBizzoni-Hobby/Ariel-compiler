@@ -65,7 +65,10 @@ pub fn get_token(source: &mut SourceFile) -> Arc<Token> {
             b'.' => {
                 advance(source);
                 match source.peek() {
-                    b'=' => make_token(TokenType::IterEqual, source),
+                    b'=' => {
+                        advance(source);
+                        make_token(TokenType::IterEqual, source)
+                    }
                     _ => make_token(TokenType::Iter, source),
                 }
             }
@@ -169,7 +172,13 @@ pub fn get_token(source: &mut SourceFile) -> Arc<Token> {
             }
             b'/' => {
                 advance(source);
-                make_token(TokenType::IntegerSlash, source)
+                match source.peek() {
+                    b'=' => {
+                        advance(source);
+                        make_token(TokenType::IntegerSlashEquals, source)
+                    }
+                    _ => make_token(TokenType::IntegerSlash, source),
+                }
             }
             _ => make_token(TokenType::Slash, source),
         },
@@ -180,16 +189,13 @@ pub fn get_token(source: &mut SourceFile) -> Arc<Token> {
             }
             _ => make_token(TokenType::Star, source),
         },
-        b'^' => {
-            advance(source);
-            match source.peek() {
-                b'=' => {
-                    advance(source);
-                    make_token(TokenType::PowerEquals, source)
-                }
-                _ => make_token(TokenType::Power, source),
+        b'^' => match source.peek() {
+            b'=' => {
+                advance(source);
+                make_token(TokenType::PowerEquals, source)
             }
-        }
+            _ => make_token(TokenType::Power, source),
+        },
         ch => make_token(TokenType::Unknown(ch as char), source),
     }
 }
@@ -246,17 +252,25 @@ fn make_string_token(source: &mut SourceFile) -> Arc<Token> {
                         return make_token_from(
                             TokenType::Unknown(ch as char),
                             "Invalid escape sequence.",
-                            source
+                            source,
                         )
                     }
                 }
-            },
-            _ => lexeme += &{
-                match String::from_utf8(vec![advance(source)]) {
-                    Ok(t) => t,
-                    Err(_) => return make_token_from(TokenType::InvalidByteSequenceToString, &lexeme, source),
+            }
+            _ => {
+                lexeme += &{
+                    match String::from_utf8(vec![advance(source)]) {
+                        Ok(t) => t,
+                        Err(_) => {
+                            return make_token_from(
+                                TokenType::InvalidByteSequenceToString,
+                                &lexeme,
+                                source,
+                            )
+                        }
+                    }
                 }
-            },
+            }
         }
     }
 
@@ -266,13 +280,11 @@ fn make_string_token(source: &mut SourceFile) -> Arc<Token> {
             make_token_from(TokenType::String, &lexeme, source)
         }
         // i don't think this can assume any other value than 0
-        unexpected_char => {
-            make_token_from(
-                TokenType::Unknown(unexpected_char as char),
-                "Unterminated string.",
-                source,
-            )
-        },
+        unexpected_char => make_token_from(
+            TokenType::Unknown(unexpected_char as char),
+            "Unterminated string.",
+            source,
+        ),
     }
 }
 
@@ -359,173 +371,202 @@ fn advance(source: &mut SourceFile) -> u8 {
     }
 }
 
-// #[allow(unused_imports)]
-// mod tests {
-//     use crate::tokens::{token::Token, token_type::TokenType, tokenizer::Tokenizer};
-//     use std::{fs::File as StdFile, io::Write, sync::Arc};
+#[allow(unused_imports)]
+#[allow(dead_code)]
+mod tests {
+    use super::*;
+    use std::{fs::File, io::Write};
 
-//     #[test]
-//     fn single_file_tokenization() {
-//         let _ = StdFile::create("single.file")
-//             .unwrap()
-//             .write_all(b"a b c d e");
+    fn create_test_file(name: &str, content: &str) {
+        let mut file = File::create(name).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+    }
 
-//         let mut lexer =
-//             Tokenizer::new("single.file").expect("Found error variant in Tokenizer init.");
+    fn delete_test_file(path: &str) {
+        std::fs::remove_file(path).unwrap();
+    }
 
-//         let scanned = lexer.get_all_tokens();
-//         let expected = vec![
-//             Arc::new(Token::new(
-//                 1,
-//                 0,
-//                 TokenType::Identifier,
-//                 "a".to_string(),
-//                 "single.file".to_string(),
-//             )),
-//             Arc::new(Token::new(
-//                 1,
-//                 2,
-//                 TokenType::Identifier,
-//                 "b".to_string(),
-//                 "single.file".to_string(),
-//             )),
-//             Arc::new(Token::new(
-//                 1,
-//                 4,
-//                 TokenType::Identifier,
-//                 "c".to_string(),
-//                 "single.file".to_string(),
-//             )),
-//             Arc::new(Token::new(
-//                 1,
-//                 6,
-//                 TokenType::Identifier,
-//                 "d".to_string(),
-//                 "single.file".to_string(),
-//             )),
-//             Arc::new(Token::new(
-//                 1,
-//                 8,
-//                 TokenType::Identifier,
-//                 "e".to_string(),
-//                 "single.file".to_string(),
-//             )),
-//             Arc::new(Token::new(
-//                 1,
-//                 9,
-//                 TokenType::Eof,
-//                 "".to_string(),
-//                 "single.file".to_string(),
-//             )),
-//         ];
+    fn scan_file(path: &str) -> Vec<Arc<Token>> {
+        let mut scanned: Vec<Arc<Token>> = vec![];
+        let mut source = SourceFile::new(path).unwrap();
+        loop {
+            let tk = get_token(&mut source);
+            scanned.push(Arc::clone(&tk));
 
-//         assert_eq!(expected.len(), scanned.len());
-//         for x in 0..scanned.len() {
-//             assert_eq!(expected[x], scanned[x]);
-//         }
+            if tk.ttype == TokenType::Eof {
+                break;
+            }
+        }
 
-//         std::fs::remove_file("single.file").unwrap();
-//     }
+        return scanned;
+    }
 
-//     #[test]
-//     fn keyword_tokenization_test() {
-//         StdFile::create("keyword.test")
-//             .unwrap()
-//             .write_all(
-//                 b"_
-// break
-// continue
-// else
-// enum
-// false
-// fn
-// for
-// foreach
-// if
-// in
-// import
-// let
-// loop
-// main
-// match
-// nil
-// namespace
-// pub
-// return
-// struct
-// super
-// template
-// this
-// true
-// void
-// while
-// u8
-// u16
-// u32
-// u64
-// i8
-// i16
-// i32
-// i64
-// f32
-// f64
-// str",
-//             )
-//             .unwrap();
-//         let expected_types = vec![
-//             TokenType::DontCare,
-//             TokenType::Break,
-//             TokenType::Continue,
-//             TokenType::Else,
-//             TokenType::Enum,
-//             TokenType::False,
-//             TokenType::Fn,
-//             TokenType::For,
-//             TokenType::ForEach,
-//             TokenType::If,
-//             TokenType::In,
-//             TokenType::Import,
-//             TokenType::Let,
-//             TokenType::Loop,
-//             TokenType::Main,
-//             TokenType::Match,
-//             TokenType::Nil,
-//             TokenType::Namespace,
-//             TokenType::Public,
-//             TokenType::Return,
-//             TokenType::Struct,
-//             TokenType::Super,
-//             TokenType::Template,
-//             TokenType::This,
-//             TokenType::True,
-//             TokenType::Void,
-//             TokenType::While,
-//             TokenType::U8,
-//             TokenType::U16,
-//             TokenType::U32,
-//             TokenType::U64,
-//             TokenType::I8,
-//             TokenType::I16,
-//             TokenType::I32,
-//             TokenType::I64,
-//             TokenType::F32,
-//             TokenType::F64,
-//             TokenType::StringType,
-//             TokenType::Eof,
-//         ];
+    fn test_tokentype_equality(expected: Vec<TokenType>, found: Vec<Arc<Token>>) {
+        assert_eq!(
+            expected,
+            found
+                .iter()
+                .map(|tk| tk.ttype.clone())
+                .collect::<Vec<TokenType>>()
+        );
+    }
 
-//         let mut lexer =
-//             Tokenizer::new("keyword.test").expect("Found error variant in Tokenizer init.");
+    #[test]
+    fn single_file_tokenization() {
+        create_test_file("single.file", "a b c d e");
 
-//         assert_eq!(
-//             expected_types,
-//             lexer
-//                 .get_all_tokens()
-//                 .iter()
-//                 .map(|tk| tk.ttype.clone())
-//                 .collect::<Vec<TokenType>>()
-//         );
+        let scanned: Vec<Arc<Token>> = scan_file("single.file");
+        let expected = vec![
+            Arc::new(Token::new(
+                1,
+                0,
+                TokenType::Identifier,
+                String::from("a"),
+                "single.file".to_string(),
+            )),
+            Arc::new(Token::new(
+                1,
+                2,
+                TokenType::Identifier,
+                String::from("b"),
+                "single.file".to_string(),
+            )),
+            Arc::new(Token::new(
+                1,
+                4,
+                TokenType::Identifier,
+                String::from("c"),
+                "single.file".to_string(),
+            )),
+            Arc::new(Token::new(
+                1,
+                6,
+                TokenType::Identifier,
+                String::from("d"),
+                "single.file".to_string(),
+            )),
+            Arc::new(Token::new(
+                1,
+                8,
+                TokenType::Identifier,
+                String::from("e"),
+                "single.file".to_string(),
+            )),
+            Arc::new(Token::new(
+                1,
+                9,
+                TokenType::Eof,
+                String::new(),
+                "single.file".to_string(),
+            )),
+        ];
 
-//         std::fs::remove_file("keyword.test").unwrap();
-//     }
-// }
+        assert_eq!(expected.len(), scanned.len());
+        for x in 0..scanned.len() {
+            assert_eq!(expected[x], scanned[x]);
+        }
+
+        delete_test_file("single.file");
+    }
+
+    #[test]
+    fn keyword_tokenization_test() {
+        create_test_file("keyword.test", "_ break continue else enum false fn for if import let loop main match nil return struct true void while u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 str");
+
+        let scanned: Vec<Arc<Token>> = scan_file("keyword.test");
+        let expected_types = vec![
+            TokenType::DontCare,
+            TokenType::Break,
+            TokenType::Continue,
+            TokenType::Else,
+            TokenType::Enum,
+            TokenType::False,
+            TokenType::Fn,
+            TokenType::For,
+            TokenType::If,
+            TokenType::Import,
+            TokenType::Let,
+            TokenType::Loop,
+            TokenType::Main,
+            TokenType::Match,
+            TokenType::Nil,
+            TokenType::Return,
+            TokenType::Struct,
+            TokenType::True,
+            TokenType::Void,
+            TokenType::While,
+            TokenType::U8,
+            TokenType::U16,
+            TokenType::U32,
+            TokenType::U64,
+            TokenType::I8,
+            TokenType::I16,
+            TokenType::I32,
+            TokenType::I64,
+            TokenType::F32,
+            TokenType::F64,
+            TokenType::StringType,
+            TokenType::Eof,
+        ];
+
+        test_tokentype_equality(expected_types, scanned);
+        delete_test_file("keyword.test");
+    }
+
+    #[test]
+    fn symbol_tokenization_test() {
+        create_test_file("symbol.test", "([{}]) . .. ..=, -> : := :: ?%! != = == > >= >> >>= < <= << <<= && & | || - -= + += / /=  // //= * *= ^ ^=");
+
+        let scanned: Vec<Arc<Token>> = scan_file("symbol.test");
+        let expected_types = vec![
+            TokenType::LeftParen,
+            TokenType::LeftSquare,
+            TokenType::LeftBrace,
+            TokenType::RightBrace,
+            TokenType::RightSquare,
+            TokenType::RightParen,
+            TokenType::Dot,
+            TokenType::Iter,
+            TokenType::IterEqual,
+            TokenType::Comma,
+            TokenType::Arrow,
+            TokenType::Colon,
+            TokenType::DynamicDefinition,
+            TokenType::StaticScopeGetter,
+            TokenType::Question,
+            TokenType::Mod,
+            TokenType::Not,
+            TokenType::NotEqual,
+            TokenType::Equal,
+            TokenType::EqualEqual,
+            TokenType::Greater,
+            TokenType::GreaterEqual,
+            TokenType::ShiftRight,
+            TokenType::ShiftRightEqual,
+            TokenType::Less,
+            TokenType::LessEqual,
+            TokenType::ShiftLeft,
+            TokenType::ShiftLeftEqual,
+            TokenType::And,
+            TokenType::BitAnd,
+            TokenType::BitOr,
+            TokenType::Or,
+            TokenType::Minus,
+            TokenType::MinusEquals,
+            TokenType::Plus,
+            TokenType::PlusEquals,
+            TokenType::Slash,
+            TokenType::SlashEquals,
+            TokenType::IntegerSlash,
+            TokenType::IntegerSlashEquals,
+            TokenType::Star,
+            TokenType::StarEquals,
+            TokenType::Power,
+            TokenType::PowerEquals,
+            TokenType::Eof,
+        ];
+
+        test_tokentype_equality(expected_types, scanned);
+        delete_test_file("symbol.test");
+    }
+}
