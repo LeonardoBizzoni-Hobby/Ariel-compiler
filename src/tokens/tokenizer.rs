@@ -359,7 +359,6 @@ fn skip_whitespace(source: &mut SourceFile) {
     }
 }
 
-#[inline(always)]
 fn advance(source: &mut SourceFile) -> u8 {
     match source.peek() {
         0 => 0,

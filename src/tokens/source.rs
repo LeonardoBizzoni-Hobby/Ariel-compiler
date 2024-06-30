@@ -41,17 +41,14 @@ impl SourceFile {
         })
     }
 
-    #[inline(always)]
     pub fn peek(&self) -> u8 {
         self.peek_at(0)
     }
 
-    #[inline(always)]
     pub fn peek_next(&self) -> u8 {
         self.peek_at(1)
     }
 
-    #[inline(always)]
     fn peek_at(&self, index: usize) -> u8 {
         match self.mmap.get(self.current + index) {
             Some(value) => *value,
