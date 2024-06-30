@@ -153,10 +153,18 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Box<Ast>, ParseErr
     // fn -> fn_name
     utils::advance(head);
 
-    if matches!(head.curr.ttype, TokenType::Main) {
-        function = Function::make_main(Arc::clone(head.curr));
-    } else {
-        function = Function::make_func(Arc::clone(head.curr));
+    match head.curr.ttype {
+        TokenType::Main => {
+            function = Function::make_main(Arc::clone(head.curr));
+        }
+        TokenType::Identifier => {
+            function = Function::make_func(Arc::clone(head.curr));
+        }
+        _ => {
+            return Err(ParseError::InvalidFnName {
+                name: Arc::clone(head.curr),
+            })
+        }
     }
 
     // fn_name -> (
@@ -171,11 +179,11 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Box<Ast>, ParseErr
         args.push(parse_argument(head)?);
 
         match head.curr.ttype {
-            TokenType::RightParen => {},
+            TokenType::RightParen => break,
             TokenType::Comma => {
                 // , -> arg_name:datatype
                 utils::advance(head);
-            },
+            }
             _ => {
                 return Err(ParseError::UnexpectedToken {
                     line: head.curr.line,
@@ -196,18 +204,41 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Box<Ast>, ParseErr
     function.args(args);
 
     // Return type parsing
-    if matches!(head.curr.ttype, TokenType::Arrow) {
-        // -> -> datatype
-        utils::advance(head);
-        function.ret_type(utils::parse_datatype(head)?);
-    }
+    let body = match head.curr.ttype {
+        TokenType::Arrow => {
+            // -> -> datatype
+            utils::advance(head);
+            function.ret_type(utils::parse_datatype(head)?);
 
-    // Function body parsing
-    utils::require_token_type(head.curr, TokenType::LeftBrace)?;
-    utils::advance(head);
+            // Function body parsing
+            utils::require_token_type(head.curr, TokenType::LeftBrace)?;
+            utils::advance(head);
 
-    function.body(parse_scope_block(head)?);
+            Some(parse_scope_block(head)?)
+        }
+        TokenType::LeftBrace => {
+            // { -> scope body
+            utils::advance(head);
+            Some(parse_scope_block(head)?)
+        }
+        TokenType::Semicolon => None,
+        _ => {
+            return Err(ParseError::InvalidFnBody {
+                body: Arc::clone(head.curr),
+            })
+        }
+    };
+
+    function.body(body);
     Ok(Box::new(Ast::Fn(function)))
+}
+
+fn parse_struct_definition(_head: &mut ParserHead) -> Result<Box<Ast>, ParseError> {
+    todo!()
+}
+
+fn parse_enum_definition(_head: &mut ParserHead) -> Result<Box<Ast>, ParseError> {
+    todo!()
 }
 
 fn parse_argument(head: &mut ParserHead) -> Result<Argument, ParseError> {
@@ -222,14 +253,6 @@ fn parse_argument(head: &mut ParserHead) -> Result<Argument, ParseError> {
     utils::advance(head);
 
     Ok(Argument(field_name, utils::parse_datatype(head)?))
-}
-
-fn parse_struct_definition(_head: &mut ParserHead) -> Result<Box<Ast>, ParseError> {
-    todo!()
-}
-
-fn parse_enum_definition(_head: &mut ParserHead) -> Result<Box<Ast>, ParseError> {
-    todo!()
 }
 
 fn global_synchronize(head: &mut ParserHead) {

@@ -1,20 +1,15 @@
-use std::sync::Arc;
+use std::{fmt::Display, sync::Arc};
 
 use crate::tokens::token::Token;
 
 #[derive(Debug)]
 pub enum Expression {
-    Variable {
+    Name {
         name: Arc<Token>,
     },
     GetField {
         from: Box<Expression>,
         get: Arc<Token>,
-    },
-    Ternary {
-        condition: Box<Expression>,
-        true_branch: Box<Expression>,
-        false_branch: Box<Expression>,
     },
     Binary {
         left: Box<Expression>,
@@ -35,4 +30,37 @@ pub enum Expression {
     Nested {
         nested: Box<Expression>,
     },
+    Monad {
+        value: Box<Expression>,
+    },
+}
+
+impl Display for Expression {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Expression::Name { name } => write!(f, "variable: {}", name.lexeme),
+            Expression::GetField { from, get } => write!(f, "get_field {} from {from}", get.lexeme),
+            Expression::Binary {
+                left,
+                operation,
+                right,
+            } => write!(f, "{left} {} {right}", operation.lexeme),
+            Expression::Unary { operation, value } => write!(f, "{} {value}", operation.lexeme),
+            Expression::FnCall {
+                fn_identifier,
+                args,
+            } => {
+                for arg in args.iter() {
+                    match write!(f, "{fn_identifier}({arg},") {
+                        Ok(_) => {}
+                        Err(e) => return Err(e),
+                    }
+                }
+                write!(f, ")")
+            }
+            Expression::Literal { literal } => write!(f, "literal {}", literal.lexeme),
+            Expression::Nested { nested } => write!(f, "({nested})"),
+            Expression::Monad { value } => write!(f, "monadic expression {value}"),
+        }
+    }
 }

@@ -131,16 +131,17 @@ pub fn print_error(source: &str, after: &str, e: ParseError) {
                 format!("{source} {line}:{column}").red().bold()
             );
         }
-        ParseError::LoopBodyNotFound { line, column } => {
+        ParseError::LoopBodyNotFound { body } => {
             eprintln!("[{}] :: After a loop there must be either a scope block representing the body of the loop or a `;` for a loop without a body.",
-                format!("{source} {line}:{column}").red().bold());
+                format!("{} {}:{}", body.found_in, body.line, body.column).red().bold());
         }
-        ParseError::InvalidAssignmentExpression { token } => {
+        ParseError::InvalidAssignmentExpression { operation, assign_to } => {
             eprintln!(
-                "[{}] :: Invalid assignment expression, RTFM!",
-                format!("{} {}:{}", token.found_in, token.line, token.column)
+                "[{}] :: Invalid assignment expression, can't assign a value to `{}`!",
+                format!("{} {}:{}", operation.found_in, operation.line, operation.column)
                     .red()
-                    .bold()
+                    .bold(),
+                assign_to
             );
         }
         ParseError::InvalidExpression { token } => {
@@ -161,6 +162,20 @@ pub fn print_error(source: &str, after: &str, e: ParseError) {
                     format!("{} ({})", token.lexeme, token.ttype).red().italic()
                 );
             }
+        }
+        ParseError::InvalidFnName { name } => {
+            eprintln!(
+                "[{}] :: {} is not a valid function name.",
+                format!("{} {}:{}", name.found_in, name.line, name.column).red().bold(),
+                format!("{} ({})", name.lexeme, name.ttype).red().italic()
+            );
+        }
+        ParseError::InvalidFnBody { body } => {
+            eprintln!(
+                "[{}] :: {} is not a valid function body.",
+                format!("{} {}:{}", body.found_in, body.line, body.column).red().bold(),
+                format!("{} ({})", body.lexeme, body.ttype).red().italic()
+            );
         }
     }
 }

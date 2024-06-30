@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use crate::ast_generator::ast::expressions::Expression;
+
 use super::{token::Token, token_type::TokenType};
 
 #[derive(Debug)]
@@ -29,14 +31,16 @@ pub enum ParseError {
         column: usize,
     },
     LoopBodyNotFound {
-        line: usize,
-        column: usize,
+        body: Arc<Token>,
     },
     InvalidAssignmentExpression {
-        token: Arc<Token>,
+        operation: Arc<Token>,
+        assign_to: Expression,
     },
     InvalidExpression {
         token: Arc<Token>,
     },
     InvalidIterator { token: Arc<Token>, msg: Option<String> },
+    InvalidFnName { name: Arc<Token> },
+    InvalidFnBody { body: Arc<Token> },
 }

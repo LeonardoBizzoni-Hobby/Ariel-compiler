@@ -5,7 +5,14 @@ use crate::tokens::{error::ParseError, token_type::TokenType};
 use super::{ast::expressions::Expression, parser_head::ParserHead, utils};
 
 pub fn parse_expression(head: &mut ParserHead) -> Result<Expression, ParseError> {
-    assignment_expression(head)
+    let left: Expression = assignment_expression(head)?;
+
+    match head.curr.ttype {
+        TokenType::Question => Ok(Expression::Monad {
+            value: Box::new(left),
+        }),
+        _ => Ok(left),
+    }
 }
 
 pub fn assignment_expression(head: &mut ParserHead) -> Result<Expression, ParseError> {
@@ -20,32 +27,18 @@ pub fn assignment_expression(head: &mut ParserHead) -> Result<Expression, ParseE
         | TokenType::PowerEquals
         | TokenType::ShiftLeftEqual
         | TokenType::ShiftRightEqual => {
-            let _operation = Arc::clone(head.curr);
+            let operation = Arc::clone(head.curr);
             utils::advance(head);
             let _value: Expression = or_expression(head)?;
 
             match left {
-                Expression::Variable { name: _ } => todo!(),
+                Expression::Name { name: _ } => todo!(),
                 Expression::GetField { from: _, get: _ } => todo!(),
                 _ => Err(ParseError::InvalidAssignmentExpression {
-                    token: Arc::clone(head.curr),
+                    operation,
+                    assign_to: left,
                 }),
             }
-        }
-        TokenType::Question => {
-            let condition: Box<Expression> = Box::new(left);
-            utils::advance(head);
-
-            let true_branch: Box<Expression> = Box::new(assignment_expression(head)?);
-
-            utils::require_token_type(head.curr, TokenType::Colon)?;
-            utils::advance(head);
-
-            Ok(Expression::Ternary {
-                condition,
-                true_branch,
-                false_branch: Box::new(assignment_expression(head)?),
-            })
         }
         _ => Ok(left),
     }
@@ -173,55 +166,59 @@ pub fn unary(head: &mut ParserHead) -> Result<Expression, ParseError> {
     }
 }
 
-// TODO: This allows parsing stuff like: `obj.field1()`. change it.
 pub fn call(head: &mut ParserHead) -> Result<Expression, ParseError> {
-    let mut expr: Expression = primary(head)?;
+    let mut expr: Expression = get(head)?;
 
-    loop {
-        match head.curr.ttype {
-            TokenType::LeftParen => {
-                let mut args: Vec<Expression> = vec![];
+    while matches!(head.curr.ttype, TokenType::LeftParen) {
+        let mut args: Vec<Expression> = vec![];
+        utils::advance(head);
+
+        if !matches!(head.curr.ttype, TokenType::RightParen) {
+            args.push(parse_expression(head)?);
+
+            while !matches!(head.curr.ttype, TokenType::Comma) {
                 utils::advance(head);
-
-                if !matches!(head.curr.ttype, TokenType::RightParen) {
-                    args.push(parse_expression(head)?);
-
-                    while !matches!(head.curr.ttype, TokenType::Comma) {
-                        utils::advance(head);
-                        args.push(parse_expression(head)?);
-                    }
-                }
-
-                utils::require_token_type(head.curr, TokenType::RightParen)?;
-                expr = Expression::FnCall {
-                    fn_identifier: Box::new(expr),
-                    args,
-                };
+                args.push(parse_expression(head)?);
             }
-            TokenType::Dot => {
-                utils::advance(head);
-
-                utils::require_token_type(head.curr, TokenType::Identifier)?;
-                let property = Arc::clone(head.curr);
-                utils::advance(head);
-
-                expr = Expression::GetField {
-                    from: Box::new(expr),
-                    get: property,
-                };
-            }
-            _ => break,
         }
+
+        utils::require_token_type(head.curr, TokenType::RightParen)?;
+        expr = Expression::FnCall {
+            fn_identifier: Box::new(expr),
+            args,
+        };
     }
 
     Ok(expr)
+}
+
+pub fn get(head: &mut ParserHead) -> Result<Expression, ParseError> {
+    let mut expr: Expression = primary(head)?;
+
+    while matches!(
+        head.curr.ttype,
+        TokenType::Dot | TokenType::StaticScopeGetter
+    ) {
+        utils::advance(head);
+
+        utils::require_token_type(head.curr, TokenType::Identifier)?;
+        let property = Arc::clone(head.curr);
+        utils::advance(head);
+
+        expr = Expression::GetField {
+            from: Box::new(expr),
+            get: property,
+        };
+    }
+
+    return Ok(expr);
 }
 
 pub fn primary(head: &mut ParserHead) -> Result<Expression, ParseError> {
     match head.curr.ttype {
         TokenType::Identifier => {
             utils::advance(head);
-            Ok(Expression::Variable {
+            Ok(Expression::Name {
                 name: Arc::clone(head.prev),
             })
         }

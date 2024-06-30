@@ -1,5 +1,6 @@
 use std::{
-    collections::HashSet, sync::{Arc, Mutex}
+    collections::HashSet,
+    sync::{Arc, Mutex},
 };
 
 use crate::ast_generator::parser;
@@ -15,7 +16,8 @@ pub fn compile(source: &str) {
 
     let ast = parser::parse(source, Arc::clone(&imported_files));
 
-    #[cfg(debug_assertions)] {
+    #[cfg(debug_assertions)]
+    {
         let elapsed = start_timer.elapsed();
 
         println!(

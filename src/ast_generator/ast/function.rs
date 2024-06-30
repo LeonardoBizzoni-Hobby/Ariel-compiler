@@ -13,7 +13,7 @@ pub struct Function {
     _name: Arc<Token>,
     args: Vec<Argument>,
     ret_type: Option<DataType>,
-    body: Vec<ScopeBoundStatement>,
+    body: Option<ScopeBoundStatement>,
 }
 
 impl Function {
@@ -23,7 +23,7 @@ impl Function {
             _name: token,
             args: vec![],
             ret_type: None,
-            body: vec![],
+            body: None,
         }
     }
 
@@ -33,7 +33,7 @@ impl Function {
             _name: token,
             args: vec![],
             ret_type: None,
-            body: vec![],
+            body: None,
         }
     }
 
@@ -41,7 +41,7 @@ impl Function {
         self.args = args;
     }
 
-    pub fn body(&mut self, body: Vec<ScopeBoundStatement>) {
+    pub fn body(&mut self, body: Option<ScopeBoundStatement>) {
         self.body = body;
     }
 
