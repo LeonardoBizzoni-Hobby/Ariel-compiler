@@ -67,9 +67,9 @@ pub fn get_token(source: &mut SourceFile) -> Arc<Token> {
                 match source.peek() {
                     b'=' => {
                         advance(source);
-                        make_token(TokenType::IterEqual, source)
+                        make_token(TokenType::SequenceUpToIncluding, source)
                     }
-                    _ => make_token(TokenType::Iter, source),
+                    _ => make_token(TokenType::SequenceUpTo, source),
                 }
             }
             _ => make_token(TokenType::Dot, source),
@@ -517,8 +517,8 @@ mod tests {
             TokenType::RightSquare,
             TokenType::RightParen,
             TokenType::Dot,
-            TokenType::Iter,
-            TokenType::IterEqual,
+            TokenType::SequenceUpTo,
+            TokenType::SequenceUpToIncluding,
             TokenType::Comma,
             TokenType::Arrow,
             TokenType::Colon,

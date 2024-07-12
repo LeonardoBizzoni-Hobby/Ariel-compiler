@@ -254,8 +254,31 @@ pub fn match_pattern_expression(head: &mut ParserHead) -> Result<Expression, Par
                 name: Arc::clone(head.prev),
             })
         }
-        TokenType::Integer
-        | TokenType::Double
+        TokenType::Integer => {
+            utils::advance(head);
+            match head.curr.ttype {
+                TokenType::SequenceUpTo | TokenType::SequenceUpToIncluding => {
+                    let start: isize = head.prev.lexeme.parse().unwrap();
+                    utils::advance(head);
+
+                    utils::require_token_type(&head.curr, TokenType::Integer)?;
+                    let end: isize = head.curr.lexeme.parse::<isize>().unwrap()
+                        + if matches!(head.prev.ttype, TokenType::SequenceUpTo) {
+                            -1
+                        } else {
+                            0
+                        };
+
+                    utils::advance(head);
+
+                    Ok(Expression::Sequence { start, end })
+                }
+                _ => Ok(Expression::Literal {
+                    literal: Arc::clone(head.prev),
+                }),
+            }
+        }
+        TokenType::Double
         | TokenType::String
         | TokenType::True
         | TokenType::False

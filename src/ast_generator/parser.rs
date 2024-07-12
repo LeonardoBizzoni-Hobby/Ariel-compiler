@@ -200,6 +200,7 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Box<Ast>, ParseErr
 
     // ) -> ->
     // ) -> {
+    // ) -> ;
     utils::advance(head);
     function.args(args);
 
