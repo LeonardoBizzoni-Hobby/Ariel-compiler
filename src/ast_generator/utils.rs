@@ -85,7 +85,6 @@ pub fn require_token_type(curr: &Token, expected: TokenType) -> Result<(), Parse
     }
 }
 
-#[inline(always)]
 pub fn advance(head: &mut ParserHead) {
     *head.prev = Arc::clone(head.curr);
     *head.curr = tokenizer::get_token(head.source);

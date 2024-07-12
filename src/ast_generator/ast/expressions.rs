@@ -22,7 +22,7 @@ pub enum Expression {
     },
     FnCall {
         fn_identifier: Box<Expression>,
-        args: Vec<Expression>,
+        args: Vec<Box<Expression>>,
     },
     Literal {
         literal: Arc<Token>,

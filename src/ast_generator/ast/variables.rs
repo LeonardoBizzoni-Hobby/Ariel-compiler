@@ -8,11 +8,11 @@ use super::expressions::Expression;
 pub struct Variable {
     _name: Arc<Token>,
     _datatype: Option<DataType>,
-    _value: Expression,
+    _value: Box<Expression>,
 }
 
 impl Variable {
-    pub fn new(name: Arc<Token>, datatype: Option<DataType>, value: Expression) -> Self {
+    pub fn new(name: Arc<Token>, datatype: Option<DataType>, value: Box<Expression>) -> Self {
         Self {
             _name: name,
             _datatype: datatype,

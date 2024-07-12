@@ -35,7 +35,7 @@ pub enum ParseError {
     },
     InvalidAssignmentExpression {
         operation: Arc<Token>,
-        assign_to: Expression,
+        assign_to: Box<Expression>,
     },
     InvalidExpression {
         token: Arc<Token>,
