@@ -23,8 +23,8 @@ use super::{
     utils,
 };
 
-pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Box<Ast>> {
-    let mut ast: Vec<Box<Ast>> = vec![];
+pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Ast> {
+    let mut ast: Vec<Ast> = vec![];
 
     {
         let mut mutex_data = match imported_files.lock() {
@@ -58,7 +58,7 @@ pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Box
 
     let mut curr: Arc<Token> = tokenizer::get_token(&mut source);
     let mut prev: Arc<Token> = Arc::new(Token::empty());
-    let mut handlers: VecDeque<JoinHandle<Vec<Box<Ast>>>> = VecDeque::new();
+    let mut handlers: VecDeque<JoinHandle<Vec<Ast>>> = VecDeque::new();
     let mut head: ParserHead = ParserHead::new(&mut curr, &mut prev, &mut source);
 
     // Actual parse loop
@@ -86,9 +86,9 @@ pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Box
 
 fn parse_global_stmt(
     head: &mut ParserHead,
-    ast: &mut Vec<Box<Ast>>,
+    ast: &mut Vec<Ast>,
     imported_files: Arc<Mutex<HashSet<String>>>,
-    thread_handles: &mut VecDeque<JoinHandle<Vec<Box<Ast>>>>,
+    thread_handles: &mut VecDeque<JoinHandle<Vec<Ast>>>,
     curr_file_name: &str,
 ) {
     loop {
@@ -146,7 +146,7 @@ fn parse_global_stmt(
     }
 }
 
-fn parse_function_definition(head: &mut ParserHead) -> Result<Box<Ast>, ParseError> {
+fn parse_function_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
     let mut function: Function;
     let mut args: Vec<Argument> = vec![];
 
@@ -231,14 +231,14 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Box<Ast>, ParseErr
     };
 
     function.body(body);
-    Ok(Box::new(Ast::Fn(function)))
+    Ok(Ast::Fn(function))
 }
 
-fn parse_struct_definition(_head: &mut ParserHead) -> Result<Box<Ast>, ParseError> {
+fn parse_struct_definition(_head: &mut ParserHead) -> Result<Ast, ParseError> {
     todo!()
 }
 
-fn parse_enum_definition(_head: &mut ParserHead) -> Result<Box<Ast>, ParseError> {
+fn parse_enum_definition(_head: &mut ParserHead) -> Result<Ast, ParseError> {
     todo!()
 }
 

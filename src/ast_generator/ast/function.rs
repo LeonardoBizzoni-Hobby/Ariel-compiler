@@ -13,7 +13,7 @@ pub struct Function {
     _name: Arc<Token>,
     args: Vec<Argument>,
     ret_type: Option<DataType>,
-    body: Option<Box<ScopeBoundStatement>>,
+    body: Option<ScopeBoundStatement>,
 }
 
 impl Function {
@@ -41,7 +41,7 @@ impl Function {
         self.args = args;
     }
 
-    pub fn body(&mut self, body: Option<Box<ScopeBoundStatement>>) {
+    pub fn body(&mut self, body: Option<ScopeBoundStatement>) {
         self.body = body;
     }
 

@@ -4,7 +4,7 @@ use super::{expressions::Expression, variables::Variable};
 
 #[derive(Debug)]
 pub enum ScopeBoundStatement {
-    Scope(Vec<Box<ScopeBoundStatement>>),
+    Scope(Vec<ScopeBoundStatement>),
     VariableDeclaration(Variable),
     Return(Box<Expression>),
     Conditional {
@@ -14,7 +14,7 @@ pub enum ScopeBoundStatement {
     },
     Match {
         on: Box<Expression>,
-        cases: HashMap<Box<Expression>, Box<ScopeBoundStatement>>,
+        cases: HashMap<Expression, ScopeBoundStatement>,
     },
     While {
         condition: Box<Expression>,

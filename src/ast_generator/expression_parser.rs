@@ -173,15 +173,15 @@ pub fn call(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
     let mut expr: Box<Expression> = get(head)?;
 
     while matches!(head.curr.ttype, TokenType::LeftParen) {
-        let mut args: Vec<Box<Expression>> = vec![];
+        let mut args: Vec<Expression> = vec![];
         utils::advance(head);
 
         if !matches!(head.curr.ttype, TokenType::RightParen) {
-            args.push(parse_expression(head)?);
+            args.push(*parse_expression(head)?);
 
             while !matches!(head.curr.ttype, TokenType::Comma) {
                 utils::advance(head);
-                args.push(parse_expression(head)?);
+                args.push(*parse_expression(head)?);
             }
         }
 
@@ -241,6 +241,7 @@ pub fn primary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
             let nested: Box<Expression> = parse_expression(head)?;
 
             utils::require_token_type(head.curr, TokenType::RightParen)?;
+            utils::advance(head);
             Ok(Box::new(Expression::Nested { nested }))
         }
         _ => Err(ParseError::InvalidExpression {
@@ -249,13 +250,13 @@ pub fn primary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
     }
 }
 
-pub fn match_pattern_expression(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
+pub fn match_pattern_expression(head: &mut ParserHead) -> Result<Expression, ParseError> {
     match head.curr.ttype {
         TokenType::Identifier | TokenType::DontCare => {
             utils::advance(head);
-            Ok(Box::new(Expression::Name {
+            Ok(Expression::Name {
                 name: Arc::clone(head.prev),
-            }))
+            })
         }
         TokenType::Integer => {
             utils::advance(head);
@@ -274,11 +275,11 @@ pub fn match_pattern_expression(head: &mut ParserHead) -> Result<Box<Expression>
 
                     utils::advance(head);
 
-                    Ok(Box::new(Expression::Sequence { start, end }))
+                    Ok(Expression::Sequence { start, end })
                 }
-                _ => Ok(Box::new(Expression::Literal {
+                _ => Ok(Expression::Literal {
                     literal: Arc::clone(head.prev),
-                })),
+                }),
             }
         }
         TokenType::Double
@@ -287,9 +288,9 @@ pub fn match_pattern_expression(head: &mut ParserHead) -> Result<Box<Expression>
         | TokenType::False
         | TokenType::Nil => {
             utils::advance(head);
-            Ok(Box::new(Expression::Literal {
+            Ok(Expression::Literal {
                 literal: Arc::clone(head.prev),
-            }))
+            })
         }
         _ => Err(ParseError::InvalidExpression {
             token: Arc::clone(head.curr),
