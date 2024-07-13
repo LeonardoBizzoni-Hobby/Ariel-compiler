@@ -2,17 +2,17 @@ use std::sync::Arc;
 
 use crate::tokens::token::Token;
 
-use super::expressions::Expression;
+use super::scopebound_statements::ScopeBoundStatement;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Variable {
     _name: Arc<Token>,
     _datatype: Option<DataType>,
-    _value: Box<Expression>,
+    _value: Box<ScopeBoundStatement>,
 }
 
 impl Variable {
-    pub fn new(name: Arc<Token>, datatype: Option<DataType>, value: Box<Expression>) -> Self {
+    pub fn new(name: Arc<Token>, datatype: Option<DataType>, value: Box<ScopeBoundStatement>) -> Self {
         Self {
             _name: name,
             _datatype: datatype,

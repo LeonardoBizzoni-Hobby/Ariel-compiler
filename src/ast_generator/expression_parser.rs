@@ -2,15 +2,17 @@ use std::sync::Arc;
 
 use crate::tokens::{error::ParseError, token_type::TokenType};
 
-use super::{ast::expressions::Expression, parser_head::ParserHead, utils::{self}};
+use super::{
+    ast::expressions::Expression,
+    parser_head::ParserHead,
+    utils::{self},
+};
 
 pub fn parse_expression(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
     let left: Box<Expression> = assignment_expression(head)?;
 
     match head.curr.ttype {
-        TokenType::Question => Ok(Box::new(Expression::Monad {
-            value: left,
-        })),
+        TokenType::Question => Ok(Box::new(Expression::Monad { value: left })),
         _ => Ok(left),
     }
 }
@@ -29,11 +31,16 @@ pub fn assignment_expression(head: &mut ParserHead) -> Result<Box<Expression>, P
         | TokenType::ShiftRightEqual => {
             let operation = Arc::clone(head.curr);
             utils::advance(head);
-            let _value: Box<Expression> = or_expression(head)?;
+            let value: Box<Expression> = or_expression(head)?;
 
             match *left {
-                Expression::Name { name: _ } => todo!(),
-                Expression::GetField { from: _, get: _ } => todo!(),
+                Expression::GetField { from: _, get: _ } | Expression::Name { name: _ } => {
+                    Ok(Box::new(Expression::Binary {
+                        left,
+                        operation,
+                        right: value,
+                    }))
+                }
                 _ => Err(ParseError::InvalidAssignmentExpression {
                     operation,
                     assign_to: left,

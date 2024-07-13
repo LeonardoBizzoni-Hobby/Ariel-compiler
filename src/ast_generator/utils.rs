@@ -176,5 +176,12 @@ pub fn print_error(source: &str, after: &str, e: ParseError) {
                 format!("{} ({})", body.lexeme, body.ttype).red().italic()
             );
         }
+        ParseError::InvalidVariableAssignment { value } => {
+            eprintln!(
+                "[{}] :: {} is not a value assignable to a variable.",
+                format!("{} {}:{}", value.found_in, value.line, value.column).red().bold(),
+                format!("{}", value.lexeme).red().italic()
+            );
+        }
     }
 }

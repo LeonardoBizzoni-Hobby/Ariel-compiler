@@ -7,6 +7,7 @@ pub enum ScopeBoundStatement {
     Scope(Vec<ScopeBoundStatement>),
     VariableDeclaration(Variable),
     Return(Box<Expression>),
+    ImplicitReturn(Box<Expression>),
     Conditional {
         condition: Box<Expression>,
         true_branch: Box<ScopeBoundStatement>,

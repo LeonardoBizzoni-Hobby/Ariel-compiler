@@ -112,16 +112,23 @@ fn parse_match(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError>
         cases.insert(case, value);
     }
 
+    utils::advance(head);
     Ok(ScopeBoundStatement::Match { on, cases })
 }
 
 fn parse_expression_statement(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
     let expr: Box<Expression> = parse_expression(head)?;
 
-    utils::require_token_type(head.curr, TokenType::Semicolon)?;
-    utils::advance(head);
-
-    Ok(ScopeBoundStatement::Expression(expr))
+    match head.curr.ttype {
+        TokenType::Semicolon => {
+            utils::advance(head);
+            Ok(ScopeBoundStatement::Expression(expr))
+        }
+        TokenType::RightBrace => Ok(ScopeBoundStatement::ImplicitReturn(expr)),
+        _ => Err(ParseError::InvalidExpression {
+            token: Arc::clone(head.curr),
+        }),
+    }
 }
 
 fn parse_for(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
@@ -157,7 +164,10 @@ fn parse_for(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
     utils::advance(head);
 
     let body: Option<Box<ScopeBoundStatement>> = match head.curr.ttype {
-        TokenType::Semicolon => None,
+        TokenType::Semicolon => {
+            utils::advance(head);
+            None
+        },
         TokenType::LeftBrace => {
             utils::advance(head);
             Some(Box::new(parse_scope_block(head)?))
@@ -258,6 +268,29 @@ fn parse_conditional_branch(head: &mut ParserHead) -> Result<ScopeBoundStatement
 pub fn parse_variable_declaration(
     head: &mut ParserHead,
 ) -> Result<ScopeBoundStatement, ParseError> {
+    let parse_value = |head: &mut ParserHead| -> Result<ScopeBoundStatement, ParseError> {
+        match head.curr.ttype {
+            TokenType::If => parse_conditional(head),
+            TokenType::Match => parse_match(head),
+            TokenType::LeftBrace => {
+                utils::advance(head);
+                parse_scope_block(head)
+            }
+            TokenType::While
+            | TokenType::Loop
+            | TokenType::For
+            | TokenType::Return
+            | TokenType::Let
+            | TokenType::Break
+            | TokenType::Continue => Err(ParseError::InvalidVariableAssignment {
+                value: Arc::clone(head.curr),
+            }),
+            _ => Ok(ScopeBoundStatement::Expression(
+                expression_parser::parse_expression(head)?,
+            )),
+        }
+    };
+
     let variable_name = Arc::clone(head.curr);
     utils::advance(head);
 
@@ -273,7 +306,7 @@ pub fn parse_variable_declaration(
                     ScopeBoundStatement::VariableDeclaration(Variable::new(
                         variable_name,
                         Some(datatype),
-                        or_expression(head)?,
+                        Box::new(parse_value(head)?),
                     ))
                 }
                 Err(_) => {
@@ -289,7 +322,7 @@ pub fn parse_variable_declaration(
             ScopeBoundStatement::VariableDeclaration(Variable::new(
                 variable_name,
                 None,
-                parse_expression(head)?,
+                Box::new(parse_value(head)?),
             ))
         }
         _ => {
@@ -585,21 +618,42 @@ mod tests {
         }
 
         #[test]
-        fn invalid_stmt_in_scope() {
-            let found = parse("invalid_stmt_in_scope", "{ {3 + 4} }");
+        fn inner_scope_implicit_return() {
+            let found = parse("inner_scope_implicit_return", "{ {3 + 4} }");
+
             assert!(found.is_ok());
-
-            if let ScopeBoundStatement::Scope(body) = found.ok().unwrap() {
-                assert!(!body.is_empty());
-                assert!(body.get(0).is_some());
-
-                if let ScopeBoundStatement::Scope(inner) = &body[0] {
-                    assert!(inner.is_empty());
-                    return;
-                }
-            }
-
-            panic!()
+            assert_eq!(
+                ScopeBoundStatement::Scope(vec![ScopeBoundStatement::Scope(vec![
+                    ScopeBoundStatement::ImplicitReturn(Box::new(Expression::Binary {
+                        left: Box::new(Expression::Literal {
+                            literal: Arc::new(Token {
+                                line: 1,
+                                column: 3,
+                                ttype: TokenType::Integer,
+                                lexeme: "3".to_owned(),
+                                found_in: "inner_scope_implicit_return".to_owned()
+                            })
+                        }),
+                        operation: Arc::new(Token {
+                            line: 1,
+                            column: 5,
+                            ttype: TokenType::Plus,
+                            lexeme: "+".to_owned(),
+                            found_in: "inner_scope_implicit_return".to_owned()
+                        }),
+                        right: Box::new(Expression::Literal {
+                            literal: Arc::new(Token {
+                                line: 1,
+                                column: 7,
+                                ttype: TokenType::Integer,
+                                lexeme: "4".to_owned(),
+                                found_in: "inner_scope_implicit_return".to_owned()
+                            })
+                        })
+                    }))
+                ])]),
+                found.ok().unwrap()
+            );
         }
 
         #[test]
