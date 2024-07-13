@@ -179,30 +179,17 @@ fn parse_for(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
 
 pub fn parse_loop(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
     utils::advance(head);
-    let condition = Box::new(Expression::Literal {
-        literal: Arc::new(Token::new(
-            head.curr.line,
-            head.curr.column,
-            TokenType::True,
-            String::from("true"),
-            head.curr.found_in.clone(),
-        )),
-    });
 
     match head.curr.ttype {
         TokenType::LeftBrace => {
             utils::advance(head);
-            Ok(ScopeBoundStatement::While {
-                condition,
-                body: Some(Box::new(parse_scope_block(head)?)),
-            })
+            Ok(ScopeBoundStatement::Loop(Some(Box::new(
+                parse_scope_block(head)?,
+            ))))
         }
         TokenType::Semicolon => {
             utils::advance(head);
-            Ok(ScopeBoundStatement::While {
-                condition,
-                body: None,
-            })
+            Ok(ScopeBoundStatement::Loop(None))
         }
         _ => Err(ParseError::LoopBodyNotFound {
             body: Arc::clone(head.curr),

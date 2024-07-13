@@ -16,6 +16,7 @@ pub enum ScopeBoundStatement {
         on: Box<Expression>,
         cases: HashMap<Expression, ScopeBoundStatement>,
     },
+    Loop(Option<Box<ScopeBoundStatement>>),
     While {
         condition: Box<Expression>,
         body: Option<Box<ScopeBoundStatement>>,
