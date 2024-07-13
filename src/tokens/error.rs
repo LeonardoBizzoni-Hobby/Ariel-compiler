@@ -10,7 +10,7 @@ pub enum Error {
     MemoryMapFiled(String, String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 #[allow(dead_code)]
 pub enum ParseError {
     UnexpectedToken {

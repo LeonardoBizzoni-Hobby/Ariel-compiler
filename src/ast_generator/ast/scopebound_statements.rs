@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use super::{expressions::Expression, variables::Variable};
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ScopeBoundStatement {
     Scope(Vec<ScopeBoundStatement>),
     VariableDeclaration(Variable),
@@ -24,7 +24,7 @@ pub enum ScopeBoundStatement {
         initialization: Option<Box<ScopeBoundStatement>>,
         condition: Option<Box<ScopeBoundStatement>>,
         increment: Option<Box<Expression>>,
-        body: Box<ScopeBoundStatement>,
+        body: Option<Box<ScopeBoundStatement>>,
     },
     Expression(Box<Expression>),
     Break,

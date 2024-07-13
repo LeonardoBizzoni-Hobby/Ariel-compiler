@@ -4,7 +4,7 @@ use crate::tokens::token::Token;
 
 use super::expressions::Expression;
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct Variable {
     _name: Arc<Token>,
     _datatype: Option<DataType>,
@@ -21,7 +21,7 @@ impl Variable {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum DataType {
     U8,
     U16,

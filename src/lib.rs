@@ -15,7 +15,7 @@ pub fn compile(source: &str) {
     #[cfg(debug_assertions)]
     let start_timer = std::time::Instant::now();
 
-    let ast = parser::parse(source, Arc::clone(&imported_files));
+    let _ast = parser::parse(source, Arc::clone(&imported_files));
 
     #[cfg(debug_assertions)]
     {
@@ -27,6 +27,6 @@ pub fn compile(source: &str) {
             elapsed.as_millis()
         );
 
-        println!("{:#?}", ast);
+        // println!("{:#?}", ast);
     }
 }
