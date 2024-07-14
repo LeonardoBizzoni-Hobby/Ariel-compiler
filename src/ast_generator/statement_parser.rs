@@ -23,9 +23,10 @@ pub fn parse_scopebound_statement(
         TokenType::While => parse_while_loop(head),
         TokenType::Loop => parse_loop(head),
         TokenType::For => parse_for(head),
+        TokenType::Let => parse_variable_declaration(head),
         TokenType::LeftBrace => {
             utils::advance(head);
-            parse_scope_block(head)
+            Ok(ScopeBoundStatement::Scope(parse_scope_block(head)?))
         }
         TokenType::Return => {
             utils::advance(head);
@@ -36,10 +37,6 @@ pub fn parse_scopebound_statement(
             utils::advance(head);
 
             Ok(ScopeBoundStatement::Return(expr))
-        }
-        TokenType::Let => {
-            utils::advance(head);
-            Ok(parse_variable_declaration(head)?)
         }
         TokenType::Break => {
             utils::advance(head);
@@ -61,7 +58,7 @@ pub fn parse_scopebound_statement(
     }
 }
 
-pub fn parse_scope_block(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
+pub fn parse_scope_block(head: &mut ParserHead) -> Result<Vec<ScopeBoundStatement>, ParseError> {
     let mut body: Vec<ScopeBoundStatement> = vec![];
 
     while !matches!(head.curr.ttype, TokenType::RightBrace | TokenType::Eof) {
@@ -87,7 +84,7 @@ pub fn parse_scope_block(head: &mut ParserHead) -> Result<ScopeBoundStatement, P
     utils::require_token_type(&head.curr, TokenType::RightBrace)?;
     utils::advance(head);
 
-    Ok(ScopeBoundStatement::Scope(body))
+    Ok(body)
 }
 
 fn parse_match(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
@@ -98,7 +95,7 @@ fn parse_match(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError>
     utils::require_token_type(&head.curr, TokenType::LeftBrace)?;
     utils::advance(head);
 
-    let mut cases: HashMap<Expression, ScopeBoundStatement> = HashMap::new();
+    let mut cases: HashMap<Expression, Vec<ScopeBoundStatement>> = HashMap::new();
     while !matches!(head.curr.ttype, TokenType::RightBrace) {
         let case: Expression = expression_parser::match_pattern_expression(head)?;
 
@@ -108,7 +105,7 @@ fn parse_match(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError>
         utils::require_token_type(&head.curr, TokenType::LeftBrace)?;
         utils::advance(head);
 
-        let value: ScopeBoundStatement = parse_scope_block(head)?;
+        let value: Vec<ScopeBoundStatement> = parse_scope_block(head)?;
         cases.insert(case, value);
 
         match head.curr.ttype {
@@ -181,14 +178,14 @@ fn parse_for(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
     utils::require_token_type(&head.curr, TokenType::RightParen)?;
     utils::advance(head);
 
-    let body: Option<Box<ScopeBoundStatement>> = match head.curr.ttype {
+    let body: Option<Vec<ScopeBoundStatement>> = match head.curr.ttype {
         TokenType::Semicolon => {
             utils::advance(head);
             None
         }
         TokenType::LeftBrace => {
             utils::advance(head);
-            Some(Box::new(parse_scope_block(head)?))
+            Some(parse_scope_block(head)?)
         }
         _ => {
             return Err(ParseError::LoopBodyNotFound {
@@ -211,9 +208,9 @@ pub fn parse_loop(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseErr
     match head.curr.ttype {
         TokenType::LeftBrace => {
             utils::advance(head);
-            Ok(ScopeBoundStatement::Loop(Some(Box::new(
+            Ok(ScopeBoundStatement::Loop(Some(
                 parse_scope_block(head)?,
-            ))))
+            )))
         }
         TokenType::Semicolon => {
             utils::advance(head);
@@ -234,7 +231,7 @@ pub fn parse_while_loop(head: &mut ParserHead) -> Result<ScopeBoundStatement, Pa
             utils::advance(head);
             Ok(ScopeBoundStatement::While {
                 condition,
-                body: Some(Box::new(parse_scope_block(head)?)),
+                body: Some(parse_scope_block(head)?),
             })
         }
         TokenType::Semicolon => {
@@ -253,7 +250,7 @@ pub fn parse_while_loop(head: &mut ParserHead) -> Result<ScopeBoundStatement, Pa
 pub fn parse_conditional(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
     utils::advance(head);
     let condition: Box<Expression> = or_expression(head)?;
-    let true_branch: Box<ScopeBoundStatement> = Box::new(parse_conditional_branch(head)?);
+    let true_branch: Vec<ScopeBoundStatement> = parse_conditional_branch(head)?;
 
     match head.curr.ttype {
         TokenType::Else => {
@@ -263,8 +260,8 @@ pub fn parse_conditional(head: &mut ParserHead) -> Result<ScopeBoundStatement, P
                 condition,
                 true_branch,
                 false_branch: Some(match head.curr.ttype {
-                    TokenType::If => Box::new(parse_conditional(head)?),
-                    _ => Box::new(parse_conditional_branch(head)?),
+                    TokenType::If => vec![parse_conditional(head)?],
+                    _ => parse_conditional_branch(head)?,
                 }),
             })
         }
@@ -276,7 +273,7 @@ pub fn parse_conditional(head: &mut ParserHead) -> Result<ScopeBoundStatement, P
     }
 }
 
-fn parse_conditional_branch(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
+fn parse_conditional_branch(head: &mut ParserHead) -> Result<Vec<ScopeBoundStatement>, ParseError> {
     utils::require_token_type(head.curr, TokenType::LeftBrace)?;
     utils::advance(head);
 
@@ -286,13 +283,16 @@ fn parse_conditional_branch(head: &mut ParserHead) -> Result<ScopeBoundStatement
 pub fn parse_variable_declaration(
     head: &mut ParserHead,
 ) -> Result<ScopeBoundStatement, ParseError> {
+    // let -> var_name
+    utils::advance(head);
+
     let parse_value = |head: &mut ParserHead| -> Result<ScopeBoundStatement, ParseError> {
         match head.curr.ttype {
             TokenType::If => parse_conditional(head),
             TokenType::Match => parse_match(head),
             TokenType::LeftBrace => {
                 utils::advance(head);
-                parse_scope_block(head)
+                Ok(ScopeBoundStatement::Scope(parse_scope_block(head)?))
             }
             TokenType::While
             | TokenType::Loop
@@ -456,7 +456,7 @@ mod tests {
                             found_in: "empty_true_branch".to_owned()
                         })
                     }),
-                    true_branch: Box::new(ScopeBoundStatement::Scope(vec![])),
+                    true_branch: vec![],
                     false_branch: None
                 },
                 found.ok().unwrap()
@@ -480,8 +480,8 @@ mod tests {
                             found_in: "empty_branches".to_owned()
                         })
                     }),
-                    true_branch: Box::new(ScopeBoundStatement::Scope(vec![])),
-                    false_branch: Some(Box::new(ScopeBoundStatement::Scope(vec![])))
+                    true_branch: vec![],
+                    false_branch: Some(vec![])
                 },
                 found.ok().unwrap()
             );
@@ -526,8 +526,8 @@ mod tests {
                             found_in: "else_with_conditional".to_owned()
                         })
                     }),
-                    true_branch: Box::new(ScopeBoundStatement::Scope(vec![])),
-                    false_branch: Some(Box::new(ScopeBoundStatement::Conditional {
+                    true_branch: vec![],
+                    false_branch: Some(vec![ScopeBoundStatement::Conditional {
                         condition: Box::new(Expression::Literal {
                             literal: Arc::new(Token {
                                 line: 1,
@@ -537,9 +537,9 @@ mod tests {
                                 found_in: "else_with_conditional".to_owned()
                             })
                         }),
-                        true_branch: Box::new(ScopeBoundStatement::Scope(vec![])),
+                        true_branch: vec![],
                         false_branch: None
-                    }))
+                    }])
                 },
                 found.ok().unwrap()
             );
@@ -582,7 +582,7 @@ mod tests {
                             }),
                         }),
                     }),
-                    true_branch: Box::new(ScopeBoundStatement::Scope(vec![
+                    true_branch: vec![
                         ScopeBoundStatement::Return(Box::new(Expression::Literal {
                             literal: Arc::new(Token {
                                 line: 1,
@@ -592,8 +592,8 @@ mod tests {
                                 found_in: "valid_if".to_owned(),
                             })
                         }))
-                    ])),
-                    false_branch: Some(Box::new(ScopeBoundStatement::Scope(vec![
+                    ],
+                    false_branch: Some(vec![
                         ScopeBoundStatement::Return(Box::new(Expression::Unary {
                             operation: Arc::new(Token {
                                 line: 1,
@@ -612,7 +612,7 @@ mod tests {
                                 })
                             })
                         }))
-                    ])))
+                    ])
                 },
                 found.ok().unwrap()
             );
@@ -657,7 +657,7 @@ mod tests {
                             }),
                         })
                     }),
-                    true_branch: Box::new(ScopeBoundStatement::Scope(vec![
+                    true_branch: vec![
                         ScopeBoundStatement::Return(Box::new(Expression::Literal {
                             literal: Arc::new(Token {
                                 line: 1,
@@ -667,8 +667,8 @@ mod tests {
                                 found_in: "valid_if_grouping".to_owned(),
                             })
                         }))
-                    ])),
-                    false_branch: Some(Box::new(ScopeBoundStatement::Scope(vec![
+                    ],
+                    false_branch: Some(vec![
                         ScopeBoundStatement::Return(Box::new(Expression::Unary {
                             operation: Arc::new(Token {
                                 line: 1,
@@ -687,7 +687,7 @@ mod tests {
                                 })
                             })
                         }))
-                    ])))
+                    ])
                 },
                 found.ok().unwrap()
             );
@@ -741,7 +741,7 @@ mod tests {
                                     found_in: "valid_match".to_owned()
                                 })
                             },
-                            ScopeBoundStatement::Scope(vec![ScopeBoundStatement::ImplicitReturn(
+                            vec![ScopeBoundStatement::ImplicitReturn(
                                 Box::new(Expression::Literal {
                                     literal: Arc::new(Token {
                                         line: 1,
@@ -752,7 +752,7 @@ mod tests {
                                     })
                                 })
                             )])
-                        ),
+                        ,
                         (
                             Expression::Literal {
                                 literal: Arc::new(Token {
@@ -763,7 +763,7 @@ mod tests {
                                     found_in: "valid_match".to_owned()
                                 })
                             },
-                            ScopeBoundStatement::Scope(vec![ScopeBoundStatement::ImplicitReturn(
+                            vec![ScopeBoundStatement::ImplicitReturn(
                                 Box::new(Expression::Unary {
                                     operation: Arc::new(Token {
                                         line: 1,
@@ -782,7 +782,7 @@ mod tests {
                                         })
                                     })
                                 })
-                            )])
+                            )]
                         )
                     ])
                 },
@@ -840,7 +840,7 @@ mod tests {
                                     found_in: "valid_match_nested_condition".to_owned()
                                 })
                             },
-                            ScopeBoundStatement::Scope(vec![ScopeBoundStatement::ImplicitReturn(
+                            vec![ScopeBoundStatement::ImplicitReturn(
                                 Box::new(Expression::Literal {
                                     literal: Arc::new(Token {
                                         line: 1,
@@ -850,7 +850,7 @@ mod tests {
                                         found_in: "valid_match_nested_condition".to_owned()
                                     })
                                 })
-                            )])
+                            )]
                         ),
                         (
                             Expression::Literal {
@@ -862,7 +862,7 @@ mod tests {
                                     found_in: "valid_match_nested_condition".to_owned()
                                 })
                             },
-                            ScopeBoundStatement::Scope(vec![ScopeBoundStatement::ImplicitReturn(
+                            vec![ScopeBoundStatement::ImplicitReturn(
                                 Box::new(Expression::Unary {
                                     operation: Arc::new(Token {
                                         line: 1,
@@ -881,7 +881,7 @@ mod tests {
                                         })
                                     })
                                 })
-                            )])
+                            )]
                         )
                     ])
                 },
@@ -906,6 +906,152 @@ mod tests {
                     msg: None,
                 },
                 found.err().unwrap()
+            );
+        }
+    }
+
+    mod loops {
+        use super::*;
+
+        #[test]
+        fn while_no_condition() {
+            let found = parse("while_no_condition", "while { 23 + 19; }");
+
+            assert!(found.is_err());
+            assert_eq!(
+                ParseError::InvalidExpression {
+                    token: Arc::new(Token {
+                        line: 1,
+                        column: 6,
+                        ttype: TokenType::LeftBrace,
+                        lexeme: "{".to_owned(),
+                        found_in: "while_no_condition".to_owned()
+                    })
+                },
+                found.err().unwrap()
+            );
+        }
+
+        #[test]
+        fn while_no_condition_body() {
+            let found = parse("while_no_condition_body", "while;");
+
+            assert!(found.is_err());
+            assert_eq!(
+                ParseError::InvalidExpression {
+                    token: Arc::new(Token {
+                        line: 1,
+                        column: 5,
+                        ttype: TokenType::Semicolon,
+                        lexeme: ";".to_owned(),
+                        found_in: "while_no_condition_body".to_owned()
+                    })
+                },
+                found.err().unwrap()
+            );
+        }
+
+        #[test]
+        fn valid_while_no_body() {
+            let found = parse("valid_while_no_body", "while true;");
+
+            assert!(found.is_ok());
+            assert_eq!(
+                ScopeBoundStatement::While {
+                    condition: Box::new(Expression::Literal {
+                        literal: Arc::new(Token {
+                            line: 1,
+                            column: 6,
+                            ttype: TokenType::True,
+                            lexeme: "true".to_owned(),
+                            found_in: "valid_while_no_body".to_owned()
+                        })
+                    }),
+                    body: None
+                },
+                found.ok().unwrap()
+            );
+        }
+
+        #[test]
+        fn valid_while() {
+            let found = parse("valid_while", "while nil { 23 + 19; }");
+
+            assert!(found.is_ok());
+            assert_eq!(
+                ScopeBoundStatement::While {
+                    condition: Box::new(Expression::Literal {
+                        literal: Arc::new(Token {
+                            line: 1,
+                            column: 6,
+                            ttype: TokenType::Nil,
+                            lexeme: "nil".to_owned(),
+                            found_in: "valid_while".to_owned()
+                        })
+                    }),
+                    body: Some(vec![
+                        ScopeBoundStatement::Expression(Box::new(Expression::Binary {
+                            left: Box::new(Expression::Literal {
+                                literal: Arc::new(Token {
+                                    line: 1,
+                                    column: 12,
+                                    ttype: TokenType::Integer,
+                                    lexeme: "23".to_owned(),
+                                    found_in: "valid_while".to_owned()
+                                })
+                            }),
+                            operation: Arc::new(Token {
+                                line: 1,
+                                column: 15,
+                                ttype: TokenType::Plus,
+                                lexeme: "+".to_owned(),
+                                found_in: "valid_while".to_owned()
+                            }),
+                            right: Box::new(Expression::Literal {
+                                literal: Arc::new(Token {
+                                    line: 1,
+                                    column: 17,
+                                    ttype: TokenType::Integer,
+                                    lexeme: "19".to_owned(),
+                                    found_in: "valid_while".to_owned()
+                                })
+                            })
+                        }))
+                    ])
+                },
+                found.ok().unwrap()
+            );
+        }
+
+        #[test]
+        fn empty_for_no_body() {
+            let found = parse("empty_for_no_body", "for ( ; ; );");
+
+            assert!(found.is_ok());
+            assert_eq!(
+                ScopeBoundStatement::For {
+                    initialization: None,
+                    condition: None,
+                    increment: None,
+                    body: None
+                },
+                found.ok().unwrap()
+            );
+        }
+
+        #[test]
+        fn empty_for() {
+            let found = parse("empty_for_body", "for ( ; ; ) {}");
+
+            assert!(found.is_ok());
+            assert_eq!(
+                ScopeBoundStatement::For {
+                    initialization: None,
+                    condition: None,
+                    increment: None,
+                    body: Some(vec![])
+                },
+                found.ok().unwrap()
             );
         }
     }
