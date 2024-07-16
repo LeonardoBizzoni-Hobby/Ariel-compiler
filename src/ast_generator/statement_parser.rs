@@ -24,6 +24,13 @@ pub fn parse_scopebound_statement(
         TokenType::Loop => parse_loop(head),
         TokenType::For => parse_for(head),
         TokenType::Let => parse_variable_declaration(head),
+        TokenType::Defer => {
+            utils::advance(head);
+
+            Ok(ScopeBoundStatement::Defer(Box::new(
+                parse_scopebound_statement(head)?,
+            )))
+        },
         TokenType::LeftBrace => {
             utils::advance(head);
             Ok(ScopeBoundStatement::Scope(parse_scope_block(head)?))
@@ -208,9 +215,7 @@ pub fn parse_loop(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseErr
     match head.curr.ttype {
         TokenType::LeftBrace => {
             utils::advance(head);
-            Ok(ScopeBoundStatement::Loop(Some(
-                parse_scope_block(head)?,
-            )))
+            Ok(ScopeBoundStatement::Loop(Some(parse_scope_block(head)?)))
         }
         TokenType::Semicolon => {
             utils::advance(head);
@@ -582,19 +587,17 @@ mod tests {
                             }),
                         }),
                     }),
-                    true_branch: vec![
-                        ScopeBoundStatement::Return(Box::new(Expression::Literal {
-                            literal: Arc::new(Token {
-                                line: 1,
-                                column: 21,
-                                ttype: TokenType::Integer,
-                                lexeme: "42".to_owned(),
-                                found_in: "valid_if".to_owned(),
-                            })
-                        }))
-                    ],
-                    false_branch: Some(vec![
-                        ScopeBoundStatement::Return(Box::new(Expression::Unary {
+                    true_branch: vec![ScopeBoundStatement::Return(Box::new(Expression::Literal {
+                        literal: Arc::new(Token {
+                            line: 1,
+                            column: 21,
+                            ttype: TokenType::Integer,
+                            lexeme: "42".to_owned(),
+                            found_in: "valid_if".to_owned(),
+                        })
+                    }))],
+                    false_branch: Some(vec![ScopeBoundStatement::Return(Box::new(
+                        Expression::Unary {
                             operation: Arc::new(Token {
                                 line: 1,
                                 column: 41,
@@ -611,8 +614,8 @@ mod tests {
                                     found_in: "valid_if".to_owned(),
                                 })
                             })
-                        }))
-                    ])
+                        }
+                    ))])
                 },
                 found.ok().unwrap()
             );
@@ -657,19 +660,17 @@ mod tests {
                             }),
                         })
                     }),
-                    true_branch: vec![
-                        ScopeBoundStatement::Return(Box::new(Expression::Literal {
-                            literal: Arc::new(Token {
-                                line: 1,
-                                column: 23,
-                                ttype: TokenType::Integer,
-                                lexeme: "42".to_owned(),
-                                found_in: "valid_if_grouping".to_owned(),
-                            })
-                        }))
-                    ],
-                    false_branch: Some(vec![
-                        ScopeBoundStatement::Return(Box::new(Expression::Unary {
+                    true_branch: vec![ScopeBoundStatement::Return(Box::new(Expression::Literal {
+                        literal: Arc::new(Token {
+                            line: 1,
+                            column: 23,
+                            ttype: TokenType::Integer,
+                            lexeme: "42".to_owned(),
+                            found_in: "valid_if_grouping".to_owned(),
+                        })
+                    }))],
+                    false_branch: Some(vec![ScopeBoundStatement::Return(Box::new(
+                        Expression::Unary {
                             operation: Arc::new(Token {
                                 line: 1,
                                 column: 43,
@@ -686,8 +687,8 @@ mod tests {
                                     found_in: "valid_if_grouping".to_owned(),
                                 })
                             })
-                        }))
-                    ])
+                        }
+                    ))])
                 },
                 found.ok().unwrap()
             );
@@ -741,8 +742,8 @@ mod tests {
                                     found_in: "valid_match".to_owned()
                                 })
                             },
-                            vec![ScopeBoundStatement::ImplicitReturn(
-                                Box::new(Expression::Literal {
+                            vec![ScopeBoundStatement::ImplicitReturn(Box::new(
+                                Expression::Literal {
                                     literal: Arc::new(Token {
                                         line: 1,
                                         column: 27,
@@ -750,9 +751,9 @@ mod tests {
                                         lexeme: "42".to_owned(),
                                         found_in: "valid_match".to_owned()
                                     })
-                                })
-                            )])
-                        ,
+                                }
+                            ))]
+                        ),
                         (
                             Expression::Literal {
                                 literal: Arc::new(Token {
@@ -763,8 +764,8 @@ mod tests {
                                     found_in: "valid_match".to_owned()
                                 })
                             },
-                            vec![ScopeBoundStatement::ImplicitReturn(
-                                Box::new(Expression::Unary {
+                            vec![ScopeBoundStatement::ImplicitReturn(Box::new(
+                                Expression::Unary {
                                     operation: Arc::new(Token {
                                         line: 1,
                                         column: 44,
@@ -781,8 +782,8 @@ mod tests {
                                             found_in: "valid_match".to_owned()
                                         })
                                     })
-                                })
-                            )]
+                                }
+                            ))]
                         )
                     ])
                 },
@@ -840,8 +841,8 @@ mod tests {
                                     found_in: "valid_match_nested_condition".to_owned()
                                 })
                             },
-                            vec![ScopeBoundStatement::ImplicitReturn(
-                                Box::new(Expression::Literal {
+                            vec![ScopeBoundStatement::ImplicitReturn(Box::new(
+                                Expression::Literal {
                                     literal: Arc::new(Token {
                                         line: 1,
                                         column: 29,
@@ -849,8 +850,8 @@ mod tests {
                                         lexeme: "42".to_owned(),
                                         found_in: "valid_match_nested_condition".to_owned()
                                     })
-                                })
-                            )]
+                                }
+                            ))]
                         ),
                         (
                             Expression::Literal {
@@ -862,8 +863,8 @@ mod tests {
                                     found_in: "valid_match_nested_condition".to_owned()
                                 })
                             },
-                            vec![ScopeBoundStatement::ImplicitReturn(
-                                Box::new(Expression::Unary {
+                            vec![ScopeBoundStatement::ImplicitReturn(Box::new(
+                                Expression::Unary {
                                     operation: Arc::new(Token {
                                         line: 1,
                                         column: 46,
@@ -880,8 +881,8 @@ mod tests {
                                             found_in: "valid_match_nested_condition".to_owned()
                                         })
                                     })
-                                })
-                            )]
+                                }
+                            ))]
                         )
                     ])
                 },
@@ -989,8 +990,8 @@ mod tests {
                             found_in: "valid_while".to_owned()
                         })
                     }),
-                    body: Some(vec![
-                        ScopeBoundStatement::Expression(Box::new(Expression::Binary {
+                    body: Some(vec![ScopeBoundStatement::Expression(Box::new(
+                        Expression::Binary {
                             left: Box::new(Expression::Literal {
                                 literal: Arc::new(Token {
                                     line: 1,
@@ -1016,8 +1017,8 @@ mod tests {
                                     found_in: "valid_while".to_owned()
                                 })
                             })
-                        }))
-                    ])
+                        }
+                    ))])
                 },
                 found.ok().unwrap()
             );

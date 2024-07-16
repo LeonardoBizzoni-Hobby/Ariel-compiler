@@ -9,6 +9,7 @@ lazy_static! {
             ("break".to_owned(), TokenType::Break),
             ("bool".to_owned(), TokenType::Bool),
             ("continue".to_owned(), TokenType::Continue),
+            ("defer".to_owned(), TokenType::Defer),
             ("else".to_owned(), TokenType::Else),
             ("enum".to_owned(), TokenType::Enum),
             ("false".to_owned(), TokenType::False),

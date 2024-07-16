@@ -95,6 +95,7 @@ pub enum TokenType {
     Struct,
     While,
     InvalidByteSequenceToString,
+    Defer,
 }
 
 impl Display for TokenType {
@@ -184,6 +185,7 @@ impl Display for TokenType {
             TokenType::Struct => write!(f, "struct"),
             TokenType::While => write!(f, "while"),
             TokenType::Bool => write!(f, "boolean"),
+            TokenType::Defer => write!(f, "defer"),
         }
     }
 }

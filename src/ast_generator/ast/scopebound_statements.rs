@@ -5,9 +5,14 @@ use super::{expressions::Expression, variables::Variable};
 #[derive(Debug, Eq, PartialEq)]
 pub enum ScopeBoundStatement {
     Scope(Vec<ScopeBoundStatement>),
+
     VariableDeclaration(Variable),
+
     Return(Box<Expression>),
     ImplicitReturn(Box<Expression>),
+    Expression(Box<Expression>),
+    Defer(Box<ScopeBoundStatement>),
+
     Conditional {
         condition: Box<Expression>,
         true_branch: Vec<ScopeBoundStatement>,
@@ -17,6 +22,7 @@ pub enum ScopeBoundStatement {
         on: Box<Expression>,
         cases: HashMap<Expression, Vec<ScopeBoundStatement>>,
     },
+
     Loop(Option<Vec<ScopeBoundStatement>>),
     While {
         condition: Box<Expression>,
@@ -28,7 +34,7 @@ pub enum ScopeBoundStatement {
         increment: Option<Box<Expression>>,
         body: Option<Vec<ScopeBoundStatement>>,
     },
-    Expression(Box<Expression>),
+
     Break,
     Continue,
 }
