@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use colored::Colorize;
 
-use crate::tokens::{
-    error::ParseError, token::Token, token_type::TokenType, tokenizer,
-};
+use crate::tokens::{error::ParseError, token::Token, token_type::TokenType, tokenizer};
 
 use super::{ast::variables::DataType, parser_head::ParserHead};
 
@@ -43,8 +41,17 @@ pub fn parse_datatype(head: &mut ParserHead) -> Result<DataType, ParseError> {
             let array_of: DataType = parse_datatype(head)?;
 
             require_token_type(head.curr, TokenType::RightSquare)?;
-            Ok(handle_pointer_datatype(DataType::Array(Box::new(array_of)), head))
+            Ok(handle_pointer_datatype(
+                DataType::Array(Box::new(array_of)),
+                head,
+            ))
         }
+        TokenType::Identifier => Ok(handle_pointer_datatype(
+            DataType::Compound {
+                name: Arc::clone(head.curr),
+            },
+            head,
+        )),
         _ => Err(ParseError::InvalidDataType {
             line: head.curr.line,
             col: head.curr.column,
@@ -134,12 +141,18 @@ pub fn print_error(source: &str, after: &str, e: ParseError) {
             eprintln!("[{}] :: After a loop there must be either a scope block representing the body of the loop or a `;` for a loop without a body.",
                 format!("{} {}:{}", body.found_in, body.line, body.column).red().bold());
         }
-        ParseError::InvalidAssignmentExpression { operation, assign_to } => {
+        ParseError::InvalidAssignmentExpression {
+            operation,
+            assign_to,
+        } => {
             eprintln!(
                 "[{}] :: Invalid assignment expression, can't assign a value to `{}`!",
-                format!("{} {}:{}", operation.found_in, operation.line, operation.column)
-                    .red()
-                    .bold(),
+                format!(
+                    "{} {}:{}",
+                    operation.found_in, operation.line, operation.column
+                )
+                .red()
+                .bold(),
                 assign_to
             );
         }
@@ -153,11 +166,18 @@ pub fn print_error(source: &str, after: &str, e: ParseError) {
         }
         ParseError::InvalidIterator { token, msg } => {
             if let Some(msg) = msg {
-                eprintln!("[{}] {msg}", format!("{} {}:{}", token.found_in, token.line, token.column).red().bold());
+                eprintln!(
+                    "[{}] {msg}",
+                    format!("{} {}:{}", token.found_in, token.line, token.column)
+                        .red()
+                        .bold()
+                );
             } else {
                 eprintln!(
                     "[{}] :: {} is not a valid iterator.",
-                    format!("{} {}:{}", token.found_in, token.line, token.column).red().bold(),
+                    format!("{} {}:{}", token.found_in, token.line, token.column)
+                        .red()
+                        .bold(),
                     format!("{} ({})", token.lexeme, token.ttype).red().italic()
                 );
             }
@@ -165,21 +185,27 @@ pub fn print_error(source: &str, after: &str, e: ParseError) {
         ParseError::InvalidFnName { name } => {
             eprintln!(
                 "[{}] :: {} is not a valid function name.",
-                format!("{} {}:{}", name.found_in, name.line, name.column).red().bold(),
+                format!("{} {}:{}", name.found_in, name.line, name.column)
+                    .red()
+                    .bold(),
                 format!("{} ({})", name.lexeme, name.ttype).red().italic()
             );
         }
         ParseError::InvalidFnBody { body } => {
             eprintln!(
                 "[{}] :: {} is not a valid function body.",
-                format!("{} {}:{}", body.found_in, body.line, body.column).red().bold(),
+                format!("{} {}:{}", body.found_in, body.line, body.column)
+                    .red()
+                    .bold(),
                 format!("{} ({})", body.lexeme, body.ttype).red().italic()
             );
         }
         ParseError::InvalidVariableAssignment { value } => {
             eprintln!(
                 "[{}] :: {} is not a value assignable to a variable.",
-                format!("{} {}:{}", value.found_in, value.line, value.column).red().bold(),
+                format!("{} {}:{}", value.found_in, value.line, value.column)
+                    .red()
+                    .bold(),
                 format!("{}", value.lexeme).red().italic()
             );
         }

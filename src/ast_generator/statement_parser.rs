@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     ast_generator::expression_parser,
-    tokens::{error::ParseError, token::Token, token_type::TokenType},
+    tokens::{error::ParseError, token_type::TokenType},
 };
 
 use super::{
@@ -24,21 +24,29 @@ pub fn parse_scopebound_statement(
         TokenType::Loop => parse_loop(head),
         TokenType::For => parse_for(head),
         TokenType::Let => parse_variable_declaration(head),
-        TokenType::Defer => {
-            utils::advance(head);
-
-            Ok(ScopeBoundStatement::Defer(Box::new(
-                parse_scopebound_statement(head)?,
-            )))
-        },
         TokenType::LeftBrace => {
             utils::advance(head);
             Ok(ScopeBoundStatement::Scope(parse_scope_block(head)?))
         }
+        TokenType::Defer => {
+            utils::advance(head);
+
+            let stmt: ScopeBoundStatement = parse_scopebound_statement(head)?;
+
+            if head.prev.ttype != TokenType::Semicolon {
+                utils::require_token_type(&head.curr, TokenType::Semicolon)?;
+                utils::advance(head);
+            }
+
+            Ok(ScopeBoundStatement::Defer(Box::new(stmt)))
+        }
         TokenType::Return => {
             utils::advance(head);
 
-            let expr: Box<Expression> = or_expression(head)?;
+            let expr: Option<Box<ScopeBoundStatement>> = match head.curr.ttype {
+                TokenType::Semicolon => None,
+                _ => Some(Box::new(parse_assignable_stmt(head)?)),
+            };
 
             utils::require_token_type(head.curr, TokenType::Semicolon)?;
             utils::advance(head);
@@ -97,7 +105,7 @@ pub fn parse_scope_block(head: &mut ParserHead) -> Result<Vec<ScopeBoundStatemen
 fn parse_match(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
     utils::advance(head);
 
-    let on: Box<Expression> = parse_expression(head)?;
+    let on: Expression = *parse_expression(head)?;
 
     utils::require_token_type(&head.curr, TokenType::LeftBrace)?;
     utils::advance(head);
@@ -139,7 +147,7 @@ fn parse_match(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError>
 }
 
 fn parse_expression_statement(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
-    let expr: Box<Expression> = parse_expression(head)?;
+    let expr: Expression = *parse_expression(head)?;
 
     match head.curr.ttype {
         TokenType::Semicolon => {
@@ -169,17 +177,24 @@ fn parse_for(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
         _ => Some(Box::new(parse_expression_statement(head)?)),
     };
 
-    let condition: Option<Box<ScopeBoundStatement>> = match head.curr.ttype {
+    let condition: Option<Expression> = match head.curr.ttype {
         TokenType::Semicolon => {
             utils::advance(head);
             None
         }
-        _ => Some(Box::new(parse_expression_statement(head)?)),
+        _ => {
+            let res: Expression = *parse_expression(head)?;
+
+            utils::require_token_type(&head.curr, TokenType::Semicolon)?;
+            utils::advance(head);
+
+            Some(res)
+        },
     };
 
-    let increment: Option<Box<Expression>> = match head.curr.ttype {
+    let increment: Option<Expression> = match head.curr.ttype {
         TokenType::RightParen => None,
-        _ => Some(parse_expression(head)?),
+        _ => Some(*parse_expression(head)?),
     };
 
     utils::require_token_type(&head.curr, TokenType::RightParen)?;
@@ -229,7 +244,7 @@ pub fn parse_loop(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseErr
 
 pub fn parse_while_loop(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
     utils::advance(head);
-    let condition: Box<Expression> = parse_expression(head)?;
+    let condition: Expression = *parse_expression(head)?;
 
     match head.curr.ttype {
         TokenType::LeftBrace => {
@@ -254,7 +269,7 @@ pub fn parse_while_loop(head: &mut ParserHead) -> Result<ScopeBoundStatement, Pa
 
 pub fn parse_conditional(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
     utils::advance(head);
-    let condition: Box<Expression> = or_expression(head)?;
+    let condition: Expression = *or_expression(head)?;
     let true_branch: Vec<ScopeBoundStatement> = parse_conditional_branch(head)?;
 
     match head.curr.ttype {
@@ -285,34 +300,34 @@ fn parse_conditional_branch(head: &mut ParserHead) -> Result<Vec<ScopeBoundState
     parse_scope_block(head)
 }
 
+fn parse_assignable_stmt(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
+    match head.curr.ttype {
+        TokenType::If => parse_conditional(head),
+        TokenType::Match => parse_match(head),
+        TokenType::LeftBrace => {
+            utils::advance(head);
+            Ok(ScopeBoundStatement::Scope(parse_scope_block(head)?))
+        }
+        TokenType::While
+        | TokenType::Loop
+        | TokenType::For
+        | TokenType::Return
+        | TokenType::Let
+        | TokenType::Break
+        | TokenType::Continue => Err(ParseError::InvalidVariableAssignment {
+            value: Arc::clone(head.curr),
+        }),
+        _ => Ok(ScopeBoundStatement::Expression(
+            *expression_parser::parse_expression(head)?,
+        )),
+    }
+}
+
 pub fn parse_variable_declaration(
     head: &mut ParserHead,
 ) -> Result<ScopeBoundStatement, ParseError> {
     // let -> var_name
     utils::advance(head);
-
-    let parse_value = |head: &mut ParserHead| -> Result<ScopeBoundStatement, ParseError> {
-        match head.curr.ttype {
-            TokenType::If => parse_conditional(head),
-            TokenType::Match => parse_match(head),
-            TokenType::LeftBrace => {
-                utils::advance(head);
-                Ok(ScopeBoundStatement::Scope(parse_scope_block(head)?))
-            }
-            TokenType::While
-            | TokenType::Loop
-            | TokenType::For
-            | TokenType::Return
-            | TokenType::Let
-            | TokenType::Break
-            | TokenType::Continue => Err(ParseError::InvalidVariableAssignment {
-                value: Arc::clone(head.curr),
-            }),
-            _ => Ok(ScopeBoundStatement::Expression(
-                expression_parser::parse_expression(head)?,
-            )),
-        }
-    };
 
     let variable_name = Arc::clone(head.curr);
     utils::advance(head);
@@ -329,7 +344,7 @@ pub fn parse_variable_declaration(
                     ScopeBoundStatement::VariableDeclaration(Variable::new(
                         variable_name,
                         Some(datatype),
-                        Box::new(parse_value(head)?),
+                        Box::new(parse_assignable_stmt(head)?),
                     ))
                 }
                 Err(_) => {
@@ -345,7 +360,7 @@ pub fn parse_variable_declaration(
             ScopeBoundStatement::VariableDeclaration(Variable::new(
                 variable_name,
                 None,
-                Box::new(parse_value(head)?),
+                Box::new(parse_assignable_stmt(head)?),
             ))
         }
         _ => {
@@ -360,896 +375,4 @@ pub fn parse_variable_declaration(
     utils::advance(head);
 
     Ok(variable)
-}
-
-#[allow(unused_imports)]
-#[allow(dead_code)]
-mod tests {
-    use crate::{
-        test_util::{create_test_file, delete_test_file},
-        tokens::{source::SourceFile, tokenizer},
-    };
-
-    use super::*;
-    use std::{fs::File, io::Write, ops::Deref};
-
-    fn parse(file_name: &str, content: &str) -> Result<ScopeBoundStatement, ParseError> {
-        create_test_file(file_name, content);
-        let mut file = SourceFile::new(file_name).unwrap();
-
-        let mut curr = tokenizer::get_token(&mut file);
-        let mut prev = Arc::new(Token::empty());
-        let mut head = ParserHead::new(&mut curr, &mut prev, &mut file);
-
-        delete_test_file(file_name);
-        parse_scopebound_statement(&mut head)
-    }
-
-    mod conditional {
-        use super::*;
-
-        #[test]
-        fn missing_condition() {
-            let found: Result<ScopeBoundStatement, ParseError> =
-                parse("missing_condition", "if { return 42; }");
-
-            assert!(found.is_err());
-            assert_eq!(
-                ParseError::InvalidExpression {
-                    token: Arc::new(Token {
-                        line: 1,
-                        column: 3,
-                        ttype: TokenType::LeftBrace,
-                        lexeme: "{".to_owned(),
-                        found_in: "missing_condition".to_owned()
-                    })
-                },
-                found.err().unwrap()
-            );
-        }
-
-        #[test]
-        fn missing_scope() {
-            let found: Result<ScopeBoundStatement, ParseError> =
-                parse("missing_scope", "if true return 42;");
-
-            assert!(found.is_err());
-            assert_eq!(
-                ParseError::UnexpectedToken {
-                    line: 1,
-                    col: 8,
-                    found: TokenType::Return,
-                    expected: TokenType::LeftBrace,
-                    msg: None
-                },
-                found.err().unwrap()
-            );
-        }
-
-        #[test]
-        fn missing_false_branch() {
-            let found: Result<ScopeBoundStatement, ParseError> =
-                parse("missing_false_branch", "if true { return 42; } else");
-
-            assert!(found.is_err());
-            assert_eq!(
-                ParseError::UnexpectedToken {
-                    line: 1,
-                    col: 27,
-                    found: TokenType::Eof,
-                    expected: TokenType::LeftBrace,
-                    msg: None
-                },
-                found.err().unwrap()
-            );
-        }
-
-        #[test]
-        fn empty_true_branch() {
-            let found: Result<ScopeBoundStatement, ParseError> =
-                parse("empty_true_branch", "if true {}");
-
-            assert!(found.is_ok());
-            assert_eq!(
-                ScopeBoundStatement::Conditional {
-                    condition: Box::new(Expression::Literal {
-                        literal: Arc::new(Token {
-                            line: 1,
-                            column: 3,
-                            ttype: TokenType::True,
-                            lexeme: "true".to_owned(),
-                            found_in: "empty_true_branch".to_owned()
-                        })
-                    }),
-                    true_branch: vec![],
-                    false_branch: None
-                },
-                found.ok().unwrap()
-            );
-        }
-
-        #[test]
-        fn empty_branches() {
-            let found: Result<ScopeBoundStatement, ParseError> =
-                parse("empty_branches", "if true {} else {}");
-
-            assert!(found.is_ok());
-            assert_eq!(
-                ScopeBoundStatement::Conditional {
-                    condition: Box::new(Expression::Literal {
-                        literal: Arc::new(Token {
-                            line: 1,
-                            column: 3,
-                            ttype: TokenType::True,
-                            lexeme: "true".to_owned(),
-                            found_in: "empty_branches".to_owned()
-                        })
-                    }),
-                    true_branch: vec![],
-                    false_branch: Some(vec![])
-                },
-                found.ok().unwrap()
-            );
-        }
-
-        #[test]
-        fn else_with_conditional_missing_condition() {
-            let found: Result<ScopeBoundStatement, ParseError> = parse(
-                "else_with_conditional_missing_condition",
-                "if true {} else if {} else {}",
-            );
-
-            assert!(found.is_err());
-            assert_eq!(
-                ParseError::InvalidExpression {
-                    token: Arc::new(Token {
-                        line: 1,
-                        column: 19,
-                        ttype: TokenType::LeftBrace,
-                        lexeme: "{".to_owned(),
-                        found_in: "else_with_conditional_missing_condition".to_owned()
-                    })
-                },
-                found.err().unwrap()
-            );
-        }
-
-        #[test]
-        fn else_with_conditional() {
-            let found: Result<ScopeBoundStatement, ParseError> =
-                parse("else_with_conditional", "if true {} else if nil {}");
-
-            assert!(found.is_ok());
-            assert_eq!(
-                ScopeBoundStatement::Conditional {
-                    condition: Box::new(Expression::Literal {
-                        literal: Arc::new(Token {
-                            line: 1,
-                            column: 3,
-                            ttype: TokenType::True,
-                            lexeme: "true".to_owned(),
-                            found_in: "else_with_conditional".to_owned()
-                        })
-                    }),
-                    true_branch: vec![],
-                    false_branch: Some(vec![ScopeBoundStatement::Conditional {
-                        condition: Box::new(Expression::Literal {
-                            literal: Arc::new(Token {
-                                line: 1,
-                                column: 19,
-                                ttype: TokenType::Nil,
-                                lexeme: "nil".to_owned(),
-                                found_in: "else_with_conditional".to_owned()
-                            })
-                        }),
-                        true_branch: vec![],
-                        false_branch: None
-                    }])
-                },
-                found.ok().unwrap()
-            );
-        }
-
-        #[test]
-        fn valid_if_stmt() {
-            let found: Result<ScopeBoundStatement, ParseError> = parse(
-                "valid_if",
-                "if 23 == 23 { return 42; } else { return -42; }",
-            );
-
-            assert!(found.is_ok());
-            assert_eq!(
-                ScopeBoundStatement::Conditional {
-                    condition: Box::new(Expression::Binary {
-                        left: Box::new(Expression::Literal {
-                            literal: Arc::new(Token {
-                                line: 1,
-                                column: 3,
-                                ttype: TokenType::Integer,
-                                lexeme: "23".to_owned(),
-                                found_in: "valid_if".to_owned(),
-                            }),
-                        }),
-                        operation: Arc::new(Token {
-                            line: 1,
-                            column: 6,
-                            ttype: TokenType::EqualEqual,
-                            lexeme: "==".to_owned(),
-                            found_in: "valid_if".to_owned(),
-                        }),
-                        right: Box::new(Expression::Literal {
-                            literal: Arc::new(Token {
-                                line: 1,
-                                column: 9,
-                                ttype: TokenType::Integer,
-                                lexeme: "23".to_owned(),
-                                found_in: "valid_if".to_owned(),
-                            }),
-                        }),
-                    }),
-                    true_branch: vec![ScopeBoundStatement::Return(Box::new(Expression::Literal {
-                        literal: Arc::new(Token {
-                            line: 1,
-                            column: 21,
-                            ttype: TokenType::Integer,
-                            lexeme: "42".to_owned(),
-                            found_in: "valid_if".to_owned(),
-                        })
-                    }))],
-                    false_branch: Some(vec![ScopeBoundStatement::Return(Box::new(
-                        Expression::Unary {
-                            operation: Arc::new(Token {
-                                line: 1,
-                                column: 41,
-                                ttype: TokenType::Minus,
-                                lexeme: "-".to_owned(),
-                                found_in: "valid_if".to_owned()
-                            }),
-                            value: Box::new(Expression::Literal {
-                                literal: Arc::new(Token {
-                                    line: 1,
-                                    column: 42,
-                                    ttype: TokenType::Integer,
-                                    lexeme: "42".to_owned(),
-                                    found_in: "valid_if".to_owned(),
-                                })
-                            })
-                        }
-                    ))])
-                },
-                found.ok().unwrap()
-            );
-        }
-
-        #[test]
-        fn valid_if_nested_condition() {
-            let found: Result<ScopeBoundStatement, ParseError> = parse(
-                "valid_if_grouping",
-                "if (23 == 23) { return 42; } else { return -42; }",
-            );
-
-            assert!(found.is_ok());
-            assert_eq!(
-                ScopeBoundStatement::Conditional {
-                    condition: Box::new(Expression::Nested {
-                        nested: Box::new(Expression::Binary {
-                            left: Box::new(Expression::Literal {
-                                literal: Arc::new(Token {
-                                    line: 1,
-                                    column: 4,
-                                    ttype: TokenType::Integer,
-                                    lexeme: "23".to_owned(),
-                                    found_in: "valid_if_grouping".to_owned(),
-                                }),
-                            }),
-                            operation: Arc::new(Token {
-                                line: 1,
-                                column: 7,
-                                ttype: TokenType::EqualEqual,
-                                lexeme: "==".to_owned(),
-                                found_in: "valid_if_grouping".to_owned(),
-                            }),
-                            right: Box::new(Expression::Literal {
-                                literal: Arc::new(Token {
-                                    line: 1,
-                                    column: 10,
-                                    ttype: TokenType::Integer,
-                                    lexeme: "23".to_owned(),
-                                    found_in: "valid_if_grouping".to_owned(),
-                                }),
-                            }),
-                        })
-                    }),
-                    true_branch: vec![ScopeBoundStatement::Return(Box::new(Expression::Literal {
-                        literal: Arc::new(Token {
-                            line: 1,
-                            column: 23,
-                            ttype: TokenType::Integer,
-                            lexeme: "42".to_owned(),
-                            found_in: "valid_if_grouping".to_owned(),
-                        })
-                    }))],
-                    false_branch: Some(vec![ScopeBoundStatement::Return(Box::new(
-                        Expression::Unary {
-                            operation: Arc::new(Token {
-                                line: 1,
-                                column: 43,
-                                ttype: TokenType::Minus,
-                                lexeme: "-".to_owned(),
-                                found_in: "valid_if_grouping".to_owned()
-                            }),
-                            value: Box::new(Expression::Literal {
-                                literal: Arc::new(Token {
-                                    line: 1,
-                                    column: 44,
-                                    ttype: TokenType::Integer,
-                                    lexeme: "42".to_owned(),
-                                    found_in: "valid_if_grouping".to_owned(),
-                                })
-                            })
-                        }
-                    ))])
-                },
-                found.ok().unwrap()
-            );
-        }
-
-        #[test]
-        fn valid_match() {
-            let found: Result<ScopeBoundStatement, ParseError> = parse(
-                "valid_match",
-                "match 23 != 23 { true -> { 42 }, false -> { -42 } }",
-            );
-
-            assert!(found.is_ok());
-            assert_eq!(
-                ScopeBoundStatement::Match {
-                    on: Box::new(Expression::Binary {
-                        left: Box::new(Expression::Literal {
-                            literal: Arc::new(Token {
-                                line: 1,
-                                column: 6,
-                                ttype: TokenType::Integer,
-                                lexeme: "23".to_owned(),
-                                found_in: "valid_match".to_owned()
-                            })
-                        }),
-                        operation: Arc::new(Token {
-                            line: 1,
-                            column: 9,
-                            ttype: TokenType::NotEqual,
-                            lexeme: "!=".to_owned(),
-                            found_in: "valid_match".to_owned()
-                        }),
-                        right: Box::new(Expression::Literal {
-                            literal: Arc::new(Token {
-                                line: 1,
-                                column: 12,
-                                ttype: TokenType::Integer,
-                                lexeme: "23".to_owned(),
-                                found_in: "valid_match".to_owned()
-                            })
-                        })
-                    }),
-                    cases: HashMap::from([
-                        (
-                            Expression::Literal {
-                                literal: Arc::new(Token {
-                                    line: 1,
-                                    column: 17,
-                                    ttype: TokenType::True,
-                                    lexeme: "true".to_owned(),
-                                    found_in: "valid_match".to_owned()
-                                })
-                            },
-                            vec![ScopeBoundStatement::ImplicitReturn(Box::new(
-                                Expression::Literal {
-                                    literal: Arc::new(Token {
-                                        line: 1,
-                                        column: 27,
-                                        ttype: TokenType::Integer,
-                                        lexeme: "42".to_owned(),
-                                        found_in: "valid_match".to_owned()
-                                    })
-                                }
-                            ))]
-                        ),
-                        (
-                            Expression::Literal {
-                                literal: Arc::new(Token {
-                                    line: 1,
-                                    column: 33,
-                                    ttype: TokenType::False,
-                                    lexeme: "false".to_owned(),
-                                    found_in: "valid_match".to_owned()
-                                })
-                            },
-                            vec![ScopeBoundStatement::ImplicitReturn(Box::new(
-                                Expression::Unary {
-                                    operation: Arc::new(Token {
-                                        line: 1,
-                                        column: 44,
-                                        ttype: TokenType::Minus,
-                                        lexeme: "-".to_owned(),
-                                        found_in: "valid_match".to_owned()
-                                    }),
-                                    value: Box::new(Expression::Literal {
-                                        literal: Arc::new(Token {
-                                            line: 1,
-                                            column: 45,
-                                            ttype: TokenType::Integer,
-                                            lexeme: "42".to_owned(),
-                                            found_in: "valid_match".to_owned()
-                                        })
-                                    })
-                                }
-                            ))]
-                        )
-                    ])
-                },
-                found.ok().unwrap()
-            );
-        }
-
-        #[test]
-        fn valid_match_nested_condition() {
-            let found: Result<ScopeBoundStatement, ParseError> = parse(
-                "valid_match_nested_condition",
-                "match (23 != 23) { true -> { 42 }, false -> { -42 } }",
-            );
-
-            assert!(found.is_ok());
-            assert_eq!(
-                ScopeBoundStatement::Match {
-                    on: Box::new(Expression::Nested {
-                        nested: Box::new(Expression::Binary {
-                            left: Box::new(Expression::Literal {
-                                literal: Arc::new(Token {
-                                    line: 1,
-                                    column: 7,
-                                    ttype: TokenType::Integer,
-                                    lexeme: "23".to_owned(),
-                                    found_in: "valid_match_nested_condition".to_owned()
-                                })
-                            }),
-                            operation: Arc::new(Token {
-                                line: 1,
-                                column: 10,
-                                ttype: TokenType::NotEqual,
-                                lexeme: "!=".to_owned(),
-                                found_in: "valid_match_nested_condition".to_owned()
-                            }),
-                            right: Box::new(Expression::Literal {
-                                literal: Arc::new(Token {
-                                    line: 1,
-                                    column: 13,
-                                    ttype: TokenType::Integer,
-                                    lexeme: "23".to_owned(),
-                                    found_in: "valid_match_nested_condition".to_owned()
-                                })
-                            })
-                        })
-                    }),
-                    cases: HashMap::from([
-                        (
-                            Expression::Literal {
-                                literal: Arc::new(Token {
-                                    line: 1,
-                                    column: 19,
-                                    ttype: TokenType::True,
-                                    lexeme: "true".to_owned(),
-                                    found_in: "valid_match_nested_condition".to_owned()
-                                })
-                            },
-                            vec![ScopeBoundStatement::ImplicitReturn(Box::new(
-                                Expression::Literal {
-                                    literal: Arc::new(Token {
-                                        line: 1,
-                                        column: 29,
-                                        ttype: TokenType::Integer,
-                                        lexeme: "42".to_owned(),
-                                        found_in: "valid_match_nested_condition".to_owned()
-                                    })
-                                }
-                            ))]
-                        ),
-                        (
-                            Expression::Literal {
-                                literal: Arc::new(Token {
-                                    line: 1,
-                                    column: 35,
-                                    ttype: TokenType::False,
-                                    lexeme: "false".to_owned(),
-                                    found_in: "valid_match_nested_condition".to_owned()
-                                })
-                            },
-                            vec![ScopeBoundStatement::ImplicitReturn(Box::new(
-                                Expression::Unary {
-                                    operation: Arc::new(Token {
-                                        line: 1,
-                                        column: 46,
-                                        ttype: TokenType::Minus,
-                                        lexeme: "-".to_owned(),
-                                        found_in: "valid_match_nested_condition".to_owned()
-                                    }),
-                                    value: Box::new(Expression::Literal {
-                                        literal: Arc::new(Token {
-                                            line: 1,
-                                            column: 47,
-                                            ttype: TokenType::Integer,
-                                            lexeme: "42".to_owned(),
-                                            found_in: "valid_match_nested_condition".to_owned()
-                                        })
-                                    })
-                                }
-                            ))]
-                        )
-                    ])
-                },
-                found.ok().unwrap()
-            );
-        }
-
-        #[test]
-        fn match_without_arrow() {
-            let found: Result<ScopeBoundStatement, ParseError> = parse(
-                "valid_match_nested_condition",
-                "match 23 != 23 { true { 42 } }",
-            );
-
-            assert!(found.is_err());
-            assert_eq!(
-                ParseError::UnexpectedToken {
-                    line: 1,
-                    col: 22,
-                    found: TokenType::LeftBrace,
-                    expected: TokenType::Arrow,
-                    msg: None,
-                },
-                found.err().unwrap()
-            );
-        }
-    }
-
-    mod loops {
-        use super::*;
-
-        #[test]
-        fn while_no_condition() {
-            let found = parse("while_no_condition", "while { 23 + 19; }");
-
-            assert!(found.is_err());
-            assert_eq!(
-                ParseError::InvalidExpression {
-                    token: Arc::new(Token {
-                        line: 1,
-                        column: 6,
-                        ttype: TokenType::LeftBrace,
-                        lexeme: "{".to_owned(),
-                        found_in: "while_no_condition".to_owned()
-                    })
-                },
-                found.err().unwrap()
-            );
-        }
-
-        #[test]
-        fn while_no_condition_body() {
-            let found = parse("while_no_condition_body", "while;");
-
-            assert!(found.is_err());
-            assert_eq!(
-                ParseError::InvalidExpression {
-                    token: Arc::new(Token {
-                        line: 1,
-                        column: 5,
-                        ttype: TokenType::Semicolon,
-                        lexeme: ";".to_owned(),
-                        found_in: "while_no_condition_body".to_owned()
-                    })
-                },
-                found.err().unwrap()
-            );
-        }
-
-        #[test]
-        fn valid_while_no_body() {
-            let found = parse("valid_while_no_body", "while true;");
-
-            assert!(found.is_ok());
-            assert_eq!(
-                ScopeBoundStatement::While {
-                    condition: Box::new(Expression::Literal {
-                        literal: Arc::new(Token {
-                            line: 1,
-                            column: 6,
-                            ttype: TokenType::True,
-                            lexeme: "true".to_owned(),
-                            found_in: "valid_while_no_body".to_owned()
-                        })
-                    }),
-                    body: None
-                },
-                found.ok().unwrap()
-            );
-        }
-
-        #[test]
-        fn valid_while() {
-            let found = parse("valid_while", "while nil { 23 + 19; }");
-
-            assert!(found.is_ok());
-            assert_eq!(
-                ScopeBoundStatement::While {
-                    condition: Box::new(Expression::Literal {
-                        literal: Arc::new(Token {
-                            line: 1,
-                            column: 6,
-                            ttype: TokenType::Nil,
-                            lexeme: "nil".to_owned(),
-                            found_in: "valid_while".to_owned()
-                        })
-                    }),
-                    body: Some(vec![ScopeBoundStatement::Expression(Box::new(
-                        Expression::Binary {
-                            left: Box::new(Expression::Literal {
-                                literal: Arc::new(Token {
-                                    line: 1,
-                                    column: 12,
-                                    ttype: TokenType::Integer,
-                                    lexeme: "23".to_owned(),
-                                    found_in: "valid_while".to_owned()
-                                })
-                            }),
-                            operation: Arc::new(Token {
-                                line: 1,
-                                column: 15,
-                                ttype: TokenType::Plus,
-                                lexeme: "+".to_owned(),
-                                found_in: "valid_while".to_owned()
-                            }),
-                            right: Box::new(Expression::Literal {
-                                literal: Arc::new(Token {
-                                    line: 1,
-                                    column: 17,
-                                    ttype: TokenType::Integer,
-                                    lexeme: "19".to_owned(),
-                                    found_in: "valid_while".to_owned()
-                                })
-                            })
-                        }
-                    ))])
-                },
-                found.ok().unwrap()
-            );
-        }
-
-        #[test]
-        fn empty_for_no_body() {
-            let found = parse("empty_for_no_body", "for ( ; ; );");
-
-            assert!(found.is_ok());
-            assert_eq!(
-                ScopeBoundStatement::For {
-                    initialization: None,
-                    condition: None,
-                    increment: None,
-                    body: None
-                },
-                found.ok().unwrap()
-            );
-        }
-
-        #[test]
-        fn empty_for() {
-            let found = parse("empty_for_body", "for ( ; ; ) {}");
-
-            assert!(found.is_ok());
-            assert_eq!(
-                ScopeBoundStatement::For {
-                    initialization: None,
-                    condition: None,
-                    increment: None,
-                    body: Some(vec![])
-                },
-                found.ok().unwrap()
-            );
-        }
-    }
-
-    mod scope {
-        use super::*;
-
-        #[test]
-        fn scope_not_closed() {
-            let found = parse("invalid_scope", "{ 3 + 4;");
-            assert!(found.is_err());
-
-            match found.err().unwrap() {
-                ParseError::UnexpectedToken {
-                    line,
-                    col,
-                    found,
-                    expected,
-                    ..
-                } => {
-                    assert_eq!(1, line);
-                    assert_eq!(8, col);
-                    assert_eq!(TokenType::Eof, found);
-                    assert_eq!(TokenType::RightBrace, expected);
-                }
-                _ => panic!(),
-            }
-        }
-
-        #[test]
-        fn invalid_stmt_in_invalid_subscope() {
-            let found = parse("invalid_stmt_in_invalid_subscope", "{ {3 + 4 }");
-            assert!(found.is_err());
-
-            match found.err().unwrap() {
-                ParseError::UnexpectedToken {
-                    line,
-                    col,
-                    found,
-                    expected,
-                    ..
-                } => {
-                    assert_eq!(1, line);
-                    assert_eq!(10, col);
-                    assert_eq!(TokenType::Eof, found);
-                    assert_eq!(TokenType::RightBrace, expected);
-                }
-                _ => panic!(),
-            }
-        }
-
-        #[test]
-        fn inner_scope_implicit_return() {
-            let found = parse("inner_scope_implicit_return", "{ {3 + 4} }");
-
-            assert!(found.is_ok());
-            assert_eq!(
-                ScopeBoundStatement::Scope(vec![ScopeBoundStatement::Scope(vec![
-                    ScopeBoundStatement::ImplicitReturn(Box::new(Expression::Binary {
-                        left: Box::new(Expression::Literal {
-                            literal: Arc::new(Token {
-                                line: 1,
-                                column: 3,
-                                ttype: TokenType::Integer,
-                                lexeme: "3".to_owned(),
-                                found_in: "inner_scope_implicit_return".to_owned()
-                            })
-                        }),
-                        operation: Arc::new(Token {
-                            line: 1,
-                            column: 5,
-                            ttype: TokenType::Plus,
-                            lexeme: "+".to_owned(),
-                            found_in: "inner_scope_implicit_return".to_owned()
-                        }),
-                        right: Box::new(Expression::Literal {
-                            literal: Arc::new(Token {
-                                line: 1,
-                                column: 7,
-                                ttype: TokenType::Integer,
-                                lexeme: "4".to_owned(),
-                                found_in: "inner_scope_implicit_return".to_owned()
-                            })
-                        })
-                    }))
-                ])]),
-                found.ok().unwrap()
-            );
-        }
-
-        #[test]
-        fn valid_scope() {
-            let found = parse("valid_scope", "{ { 3 + 4; } }");
-            assert!(found.is_ok());
-
-            if let ScopeBoundStatement::Scope(body) = found.ok().unwrap() {
-                assert!(!body.is_empty());
-                assert!(body.get(0).is_some());
-
-                if let ScopeBoundStatement::Scope(inner_body) = &body[0] {
-                    assert!(!inner_body.is_empty());
-                    assert!(inner_body.get(0).is_some());
-
-                    if let ScopeBoundStatement::Expression(expr) = &inner_body[0] {
-                        if let Expression::Binary {
-                            left,
-                            operation,
-                            right,
-                        } = expr.as_ref()
-                        {
-                            if let (
-                                Expression::Literal { literal: left_lit },
-                                Expression::Literal { literal: right_lit },
-                            ) = (left.as_ref(), right.as_ref())
-                            {
-                                assert_eq!("3", left_lit.lexeme);
-                                assert_eq!(TokenType::Plus, operation.ttype);
-                                assert_eq!("4", right_lit.lexeme);
-                                return;
-                            }
-                        }
-                    }
-                }
-            }
-
-            panic!()
-        }
-    }
-
-    mod loop_flow_modifiers {
-        use super::*;
-
-        #[test]
-        fn invalid_continue() {
-            let found = parse("invalid_continue", "continue");
-            assert!(found.is_err());
-
-            match found.err().unwrap() {
-                ParseError::UnexpectedToken {
-                    line,
-                    col,
-                    found,
-                    expected,
-                    ..
-                } => {
-                    assert_eq!(1, line);
-                    assert_eq!(8, col);
-                    assert_eq!(TokenType::Eof, found);
-                    assert_eq!(TokenType::Semicolon, expected);
-                }
-                _ => panic!(),
-            }
-        }
-
-        #[test]
-        fn valid_continue() {
-            let found = parse("valid_continue", "continue;");
-            assert!(found.is_ok());
-
-            match found.ok().unwrap() {
-                ScopeBoundStatement::Continue => {}
-                _ => panic!(),
-            }
-        }
-
-        #[test]
-        fn invalid_break() {
-            let found = parse("invalid_break", "break");
-            assert!(found.is_err());
-
-            if let ParseError::UnexpectedToken {
-                line,
-                col,
-                found,
-                expected,
-                ..
-            } = found.err().unwrap()
-            {
-                assert_eq!(1, line);
-                assert_eq!(5, col);
-                assert_eq!(TokenType::Eof, found);
-                assert_eq!(TokenType::Semicolon, expected);
-                return;
-            }
-
-            panic!()
-        }
-
-        #[test]
-        fn valid_break() {
-            let found = parse("valid_break", "break;");
-            assert!(found.is_ok());
-
-            match found.ok().unwrap() {
-                ScopeBoundStatement::Break => {}
-                _ => panic!(),
-            }
-        }
-    }
 }

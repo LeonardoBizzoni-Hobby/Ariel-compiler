@@ -38,4 +38,5 @@ pub enum DataType {
     Void,
     Array(Box<DataType>),
     Pointer(Box<DataType>),
+    Compound { name: Arc<Token> },
 }
