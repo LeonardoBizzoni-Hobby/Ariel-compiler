@@ -27,3 +27,4 @@ mod conditional;
 mod loops;
 mod scope;
 mod simple_stmt;
+mod let_stmt;

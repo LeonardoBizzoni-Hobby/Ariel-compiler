@@ -1,7 +1,5 @@
-#[allow(unused_imports)]
 use std::collections::HashMap;
 
-#[allow(unused_imports)]
 use super::*;
 
 #[test]
@@ -361,17 +359,15 @@ fn valid_match() {
                             found_in: "valid_match".to_owned()
                         })
                     },
-                    vec![ScopeBoundStatement::ImplicitReturn(
-                        Expression::Literal {
-                            literal: Arc::new(Token {
-                                line: 1,
-                                column: 27,
-                                ttype: TokenType::Integer,
-                                lexeme: "42".to_owned(),
-                                found_in: "valid_match".to_owned()
-                            })
-                        }
-                    )]
+                    vec![ScopeBoundStatement::ImplicitReturn(Expression::Literal {
+                        literal: Arc::new(Token {
+                            line: 1,
+                            column: 27,
+                            ttype: TokenType::Integer,
+                            lexeme: "42".to_owned(),
+                            found_in: "valid_match".to_owned()
+                        })
+                    })]
                 ),
                 (
                     Expression::Literal {
@@ -383,26 +379,24 @@ fn valid_match() {
                             found_in: "valid_match".to_owned()
                         })
                     },
-                    vec![ScopeBoundStatement::ImplicitReturn(
-                        Expression::Unary {
-                            operation: Arc::new(Token {
+                    vec![ScopeBoundStatement::ImplicitReturn(Expression::Unary {
+                        operation: Arc::new(Token {
+                            line: 1,
+                            column: 44,
+                            ttype: TokenType::Minus,
+                            lexeme: "-".to_owned(),
+                            found_in: "valid_match".to_owned()
+                        }),
+                        value: Box::new(Expression::Literal {
+                            literal: Arc::new(Token {
                                 line: 1,
-                                column: 44,
-                                ttype: TokenType::Minus,
-                                lexeme: "-".to_owned(),
+                                column: 45,
+                                ttype: TokenType::Integer,
+                                lexeme: "42".to_owned(),
                                 found_in: "valid_match".to_owned()
-                            }),
-                            value: Box::new(Expression::Literal {
-                                literal: Arc::new(Token {
-                                    line: 1,
-                                    column: 45,
-                                    ttype: TokenType::Integer,
-                                    lexeme: "42".to_owned(),
-                                    found_in: "valid_match".to_owned()
-                                })
                             })
-                        }
-                    )]
+                        })
+                    })]
                 )
             ])
         },
@@ -460,17 +454,15 @@ fn valid_match_nested_condition() {
                             found_in: "valid_match_nested_condition".to_owned()
                         })
                     },
-                    vec![ScopeBoundStatement::ImplicitReturn(
-                        Expression::Literal {
-                            literal: Arc::new(Token {
-                                line: 1,
-                                column: 29,
-                                ttype: TokenType::Integer,
-                                lexeme: "42".to_owned(),
-                                found_in: "valid_match_nested_condition".to_owned()
-                            })
-                        }
-                    )]
+                    vec![ScopeBoundStatement::ImplicitReturn(Expression::Literal {
+                        literal: Arc::new(Token {
+                            line: 1,
+                            column: 29,
+                            ttype: TokenType::Integer,
+                            lexeme: "42".to_owned(),
+                            found_in: "valid_match_nested_condition".to_owned()
+                        })
+                    })]
                 ),
                 (
                     Expression::Literal {
@@ -482,26 +474,24 @@ fn valid_match_nested_condition() {
                             found_in: "valid_match_nested_condition".to_owned()
                         })
                     },
-                    vec![ScopeBoundStatement::ImplicitReturn(
-                        Expression::Unary {
-                            operation: Arc::new(Token {
+                    vec![ScopeBoundStatement::ImplicitReturn(Expression::Unary {
+                        operation: Arc::new(Token {
+                            line: 1,
+                            column: 46,
+                            ttype: TokenType::Minus,
+                            lexeme: "-".to_owned(),
+                            found_in: "valid_match_nested_condition".to_owned()
+                        }),
+                        value: Box::new(Expression::Literal {
+                            literal: Arc::new(Token {
                                 line: 1,
-                                column: 46,
-                                ttype: TokenType::Minus,
-                                lexeme: "-".to_owned(),
+                                column: 47,
+                                ttype: TokenType::Integer,
+                                lexeme: "42".to_owned(),
                                 found_in: "valid_match_nested_condition".to_owned()
-                            }),
-                            value: Box::new(Expression::Literal {
-                                literal: Arc::new(Token {
-                                    line: 1,
-                                    column: 47,
-                                    ttype: TokenType::Integer,
-                                    lexeme: "42".to_owned(),
-                                    found_in: "valid_match_nested_condition".to_owned()
-                                })
                             })
-                        }
-                    )]
+                        })
+                    })]
                 )
             ])
         },

@@ -96,6 +96,8 @@ pub enum TokenType {
     While,
     InvalidByteSequenceToString,
     Defer,
+    Usize,
+    Isize,
 }
 
 impl Display for TokenType {
@@ -161,10 +163,12 @@ impl Display for TokenType {
             TokenType::U16 => write!(f, "u16"),
             TokenType::U32 => write!(f, "u32"),
             TokenType::U64 => write!(f, "u64"),
+            TokenType::Usize => write!(f, "usize"),
             TokenType::I8 => write!(f, "i8"),
             TokenType::I16 => write!(f, "i16"),
             TokenType::I32 => write!(f, "i32"),
             TokenType::I64 => write!(f, "i64"),
+            TokenType::Isize => write!(f, "isize"),
             TokenType::F32 => write!(f, "f32"),
             TokenType::F64 => write!(f, "f64"),
             TokenType::StringType => write!(f, "string type"),

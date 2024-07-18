@@ -1,7 +1,5 @@
-use crate::ast_generator::ast::variables::Variable;
-
-#[allow(unused_imports)]
 use super::*;
+use crate::ast_generator::ast::variables::Variable;
 
 #[test]
 fn while_no_condition() {
