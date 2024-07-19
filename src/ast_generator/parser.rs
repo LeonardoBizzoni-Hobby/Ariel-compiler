@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashSet, VecDeque},
+    collections::{HashMap, HashSet, VecDeque},
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
@@ -7,7 +7,10 @@ use std::{
 use colored::Colorize;
 
 use crate::{
-    ast_generator::{ast::function::Function, statement_parser::parse_scope_block},
+    ast_generator::{
+        ast::{enums::Enum, function::Function, variables::DataType},
+        statement_parser::parse_scope_block, utils::parse_datatype,
+    },
     tokens::{
         error::{Error, ParseError},
         source::SourceFile,
@@ -109,14 +112,14 @@ fn parse_global_stmt(
                     }
                     Err(e) => {
                         utils::print_error(curr_file_name, "import", e);
-                        global_synchronize(head);
+                        synchronize(head);
                     }
                 }
 
                 utils::advance(head);
                 if let Err(e) = utils::require_token_type(&mut head.curr, TokenType::Semicolon) {
                     utils::print_error(curr_file_name, &head.prev.lexeme, e);
-                    global_synchronize(head);
+                    synchronize(head);
                     continue;
                 }
             }
@@ -135,7 +138,7 @@ fn parse_global_stmt(
                     }
                     Err(e) => {
                         utils::print_error(curr_file_name, &head.prev.lexeme, e);
-                        global_synchronize(head);
+                        synchronize(head);
                     }
                 }
             }
@@ -234,11 +237,62 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
     Ok(Ast::Fn(function))
 }
 
-fn parse_struct_definition(_head: &mut ParserHead) -> Result<Ast, ParseError> {
-    todo!()
+fn parse_enum_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
+    // enum -> enum_name
+    utils::advance(head);
+
+    utils::require_token_type(&head.curr, TokenType::Identifier)?;
+    utils::advance(head);
+
+    let enum_name = Arc::clone(head.prev);
+
+    utils::require_token_type(&head.curr, TokenType::LeftBrace)?;
+    utils::advance(head);
+
+    let mut variants: HashMap<Arc<Token>, Option<DataType>> = HashMap::new();
+    while !matches!(head.curr.ttype, TokenType::RightBrace) {
+        utils::require_token_type(&head.curr, TokenType::Identifier)?;
+        utils::advance(head);
+
+        let variant_name = Arc::clone(head.prev);
+        let variant_type = match head.curr.ttype {
+            TokenType::LeftParen => {
+                utils::advance(head);
+                let variant_type = parse_datatype(head)?;
+
+                utils::require_token_type(&head.curr, TokenType::RightParen)?;
+                utils::advance(head);
+
+                Some(variant_type)
+            },
+            _ => None,
+        };
+
+        variants.insert(variant_name, variant_type);
+
+        match head.curr.ttype {
+            TokenType::RightBrace => break,
+            TokenType::Comma => {
+                utils::advance(head);
+            }
+            _ => {
+                return Err(ParseError::UnexpectedToken {
+                    line: head.curr.line,
+                    col: head.curr.column,
+                    found: head.curr.ttype.clone(),
+                    expected: TokenType::RightParen,
+                    msg: Some(String::from(
+                        "After an enum variant there should have been either a `,` or a `}`.",
+                    )),
+                });
+            }
+        }
+    }
+
+    Ok(Ast::Enum(Enum::new(enum_name, variants)))
 }
 
-fn parse_enum_definition(_head: &mut ParserHead) -> Result<Ast, ParseError> {
+fn parse_struct_definition(_head: &mut ParserHead) -> Result<Ast, ParseError> {
     todo!()
 }
 
@@ -256,7 +310,7 @@ fn parse_argument(head: &mut ParserHead) -> Result<Argument, ParseError> {
     Ok(Argument(field_name, utils::parse_datatype(head)?))
 }
 
-fn global_synchronize(head: &mut ParserHead) {
+fn synchronize(head: &mut ParserHead) {
     loop {
         utils::advance(head);
 
