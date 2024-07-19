@@ -154,7 +154,9 @@ fn parse_expression_statement(head: &mut ParserHead) -> Result<ScopeBoundStateme
             utils::advance(head);
             Ok(ScopeBoundStatement::Expression(expr))
         }
-        TokenType::RightBrace => Ok(ScopeBoundStatement::ImplicitReturn(expr)),
+        TokenType::RightBrace => {
+            Ok(ScopeBoundStatement::ImplicitReturn(expr))
+        }
         _ => Err(ParseError::InvalidExpression {
             token: Arc::clone(head.curr),
         }),
@@ -162,6 +164,15 @@ fn parse_expression_statement(head: &mut ParserHead) -> Result<ScopeBoundStateme
 }
 
 fn parse_for(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
+    let parse_value = |head: &mut ParserHead| -> Result<Expression, ParseError> {
+        let res: Expression = *parse_expression(head)?;
+
+        utils::require_token_type(&head.curr, TokenType::Semicolon)?;
+        utils::advance(head);
+
+        Ok(res)
+    };
+
     // for -> (
     utils::advance(head);
 
@@ -174,7 +185,9 @@ fn parse_for(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
             utils::advance(head);
             None
         }
-        _ => Some(Box::new(parse_expression_statement(head)?)),
+        _ => Some(Box::new(ScopeBoundStatement::Expression(parse_value(
+            head,
+        )?))),
     };
 
     let condition: Option<Expression> = match head.curr.ttype {
@@ -182,14 +195,7 @@ fn parse_for(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
             utils::advance(head);
             None
         }
-        _ => {
-            let res: Expression = *parse_expression(head)?;
-
-            utils::require_token_type(&head.curr, TokenType::Semicolon)?;
-            utils::advance(head);
-
-            Some(res)
-        },
+        _ => Some(parse_value(head)?),
     };
 
     let increment: Option<Expression> = match head.curr.ttype {

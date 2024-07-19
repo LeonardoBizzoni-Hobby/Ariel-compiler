@@ -178,6 +178,13 @@ fn for_with_init() {
 }
 
 #[test]
+fn for_with_invalid_init() {
+    let found = parse("for_with_invalid_init", "for (-100} true; 23);");
+
+    assert!(found.is_err());
+}
+
+#[test]
 fn for_with_condition() {
     let found = parse("for_with_condition", "for (; true; );");
 
