@@ -144,8 +144,6 @@ fn parse_global_stmt(
             }
             _ => {}
         }
-
-        utils::advance(head);
     }
 }
 
@@ -289,6 +287,9 @@ fn parse_enum_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
         }
     }
 
+    utils::require_token_type(&head.curr, TokenType::RightBrace)?;
+    utils::advance(head);
+
     Ok(Ast::Enum(Enum::new(enum_name, variants)))
 }
 
@@ -336,6 +337,9 @@ fn parse_struct_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
             }
         }
     }
+
+    utils::require_token_type(&head.curr, TokenType::RightBrace)?;
+    utils::advance(head);
 
     Ok(Ast::Struct(Struct::new(struct_name, fields)))
 }

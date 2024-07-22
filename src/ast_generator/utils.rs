@@ -211,5 +211,14 @@ pub fn print_error(source: &str, after: &str, e: ParseError) {
                 format!("{}", value.lexeme).red().italic()
             );
         }
+        ParseError::InvalidAddressOfValue { at } => {
+            eprintln!(
+                "[{}] :: {} is not a at assignable to a variable.",
+                format!("{} {}:{}", at.found_in, at.line, at.column)
+                    .red()
+                    .bold(),
+                format!("{}", at.lexeme).red().italic()
+            );
+        },
     }
 }

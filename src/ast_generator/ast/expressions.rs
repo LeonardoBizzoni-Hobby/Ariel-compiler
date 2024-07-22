@@ -37,6 +37,12 @@ pub enum Expression {
         start: isize,
         end: isize,
     },
+    AddressOf {
+        of: Box<Expression>,
+    },
+    ArrayLiteral {
+        values: Vec<Box<Expression>>,
+    },
 }
 
 impl Display for Expression {
@@ -65,7 +71,18 @@ impl Display for Expression {
             Expression::Literal { literal } => write!(f, "literal {}", literal.lexeme),
             Expression::Nested { nested } => write!(f, "({nested})"),
             Expression::Monad { value } => write!(f, "monadic expression {value}"),
-            Expression::Sequence { start, end } => write!(f, "sequence from `{start}` to `{end}` included"),
+            Expression::Sequence { start, end } => {
+                write!(f, "sequence from `{start}` to `{end}` included")
+            }
+            Expression::AddressOf { of } => write!(f, "address of: {of}"),
+            Expression::ArrayLiteral { values } => {
+                let mut str = String::from("[ ");
+                for value in values {
+                    str.push_str(&format!("{value},"));
+                }
+
+                write!(f, "{str} ]")
+            },
         }
     }
 }

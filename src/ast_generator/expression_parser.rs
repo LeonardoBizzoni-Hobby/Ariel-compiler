@@ -243,6 +243,45 @@ pub fn primary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
                 literal: Arc::clone(head.prev),
             }))
         }
+        TokenType::BitAnd => {
+            utils::advance(head);
+
+            let next_tk = Arc::clone(head.curr);
+            let of: Box<Expression> = primary(head)?;
+            match *of {
+                Expression::Name { .. } => Ok(Box::new(Expression::AddressOf { of })),
+                _ => Err(ParseError::InvalidAddressOfValue { at: next_tk }),
+            }
+        }
+        TokenType::LeftSquare => {
+            utils::advance(head);
+            let mut values: Vec<Box<Expression>> = vec![];
+
+            while !matches!(head.curr.ttype, TokenType::RightSquare) {
+                values.push(parse_expression(head)?);
+
+                match head.curr.ttype {
+                    TokenType::RightSquare => break,
+                    TokenType::Comma => {
+                        utils::advance(head);
+                    }
+                    _ => {
+                        return Err(ParseError::UnexpectedToken {
+                            line: head.curr.line,
+                            col: head.curr.column,
+                            found: head.curr.ttype.clone(),
+                            expected: TokenType::RightSquare,
+                            msg: None,
+                        });
+                    }
+                }
+            }
+
+            utils::require_token_type(head.curr, TokenType::RightSquare)?;
+            utils::advance(head);
+
+            Ok(Box::new(Expression::ArrayLiteral { values }))
+        }
         TokenType::LeftParen => {
             utils::advance(head);
             let nested: Box<Expression> = parse_expression(head)?;

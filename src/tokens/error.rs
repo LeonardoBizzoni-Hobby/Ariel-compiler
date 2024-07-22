@@ -53,4 +53,7 @@ pub enum ParseError {
     InvalidVariableAssignment {
         value: Arc<Token>,
     },
+    InvalidAddressOfValue {
+        at: Arc<Token>,
+    },
 }
