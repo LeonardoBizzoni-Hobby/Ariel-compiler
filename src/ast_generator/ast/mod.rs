@@ -1,5 +1,8 @@
+use structs::Struct;
+
 use self::{enums::Enum, function::Function};
 
+pub mod structs;
 pub mod enums;
 pub mod function;
 
@@ -14,4 +17,5 @@ pub mod variables;
 pub enum Ast {
     Fn(Function),
     Enum(Enum),
+    Struct(Struct),
 }

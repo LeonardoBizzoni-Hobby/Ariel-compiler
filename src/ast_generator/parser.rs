@@ -21,7 +21,7 @@ use crate::{
 };
 
 use super::{
-    ast::{function_arg::Argument, Ast},
+    ast::{function_arg::Argument, structs::Struct, Ast},
     parser_head::ParserHead,
     utils,
 };
@@ -292,8 +292,52 @@ fn parse_enum_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
     Ok(Ast::Enum(Enum::new(enum_name, variants)))
 }
 
-fn parse_struct_definition(_head: &mut ParserHead) -> Result<Ast, ParseError> {
-    todo!()
+fn parse_struct_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
+    // struct -> struct_name
+    utils::advance(head);
+
+    utils::require_token_type(&head.curr, TokenType::Identifier)?;
+    utils::advance(head);
+
+    let struct_name = Arc::clone(head.prev);
+
+    utils::require_token_type(&head.curr, TokenType::LeftBrace)?;
+    utils::advance(head);
+
+    let mut fields: Vec<(Arc<Token>, DataType)> = vec![];
+    while !matches!(head.curr.ttype, TokenType::RightBrace) {
+        utils::require_token_type(&head.curr, TokenType::Identifier)?;
+        utils::advance(head);
+
+        let field_name = Arc::clone(head.prev);
+
+        utils::require_token_type(&head.curr, TokenType::Colon)?;
+        utils::advance(head);
+
+        let field_type: DataType = parse_datatype(head)?;
+
+        fields.push((field_name, field_type));
+
+        match head.curr.ttype {
+            TokenType::RightBrace => break,
+            TokenType::Comma => {
+                utils::advance(head);
+            }
+            _ => {
+                return Err(ParseError::UnexpectedToken {
+                    line: head.curr.line,
+                    col: head.curr.column,
+                    found: head.curr.ttype.clone(),
+                    expected: TokenType::RightParen,
+                    msg: Some(String::from(
+                        "After a struct field there should have been either a `,` or a `}`.",
+                    )),
+                });
+            }
+        }
+    }
+
+    Ok(Ast::Struct(Struct::new(struct_name, fields)))
 }
 
 fn parse_argument(head: &mut ParserHead) -> Result<Argument, ParseError> {
