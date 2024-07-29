@@ -15,7 +15,7 @@ pub fn compile(source: &str) {
     #[cfg(debug_assertions)]
     let start_timer = std::time::Instant::now();
 
-    let ast_forest: Vec<Ast> = parser::parse(source, imported_files);
+    let _ast_forest: Vec<Ast> = parser::parse(source, imported_files);
 
     #[cfg(debug_assertions)]
     {
@@ -27,7 +27,7 @@ pub fn compile(source: &str) {
             elapsed.as_millis()
         );
 
-        println!("{:#?}", ast_forest);
+        // println!("{:#?}", ast_forest);
     }
 
     // let glob_env: HashMap<Arc<Token>, Ast> = HashMap::new();

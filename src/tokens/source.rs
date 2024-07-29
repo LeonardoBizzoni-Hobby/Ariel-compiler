@@ -13,20 +13,20 @@ pub struct SourceFile {
 
     pub start: usize,
     pub current: usize,
-    pub mmap: Mmap,
+    mmap: Mmap,
 }
 
 impl SourceFile {
     pub fn new(path: &str) -> Result<Self, Error> {
         let file = match File::open(path) {
             Ok(file) => file,
-            Err(e) => return Err(Error::FileNotFound(path.to_owned(), e.to_string())),
+            Err(e) => return Err(Error::FileNotFound(path, e.to_string())),
         };
 
         let mmap = unsafe {
             match Mmap::map(&file) {
                 Ok(map) => map,
-                Err(e) => return Err(Error::MemoryMapFiled(path.to_owned(), e.to_string())),
+                Err(e) => return Err(Error::MemoryMapFiled(path, e.to_string())),
             }
         };
 
@@ -41,14 +41,22 @@ impl SourceFile {
         })
     }
 
+    #[inline]
+    pub fn build_lexeme(&self) -> String {
+        String::from_utf8_lossy(&self.mmap[self.start..self.current]).to_string()
+    }
+
+    #[inline]
     pub fn peek(&self) -> u8 {
         self.peek_at(0)
     }
 
+    #[inline]
     pub fn peek_next(&self) -> u8 {
         self.peek_at(1)
     }
 
+    #[inline]
     fn peek_at(&self, index: usize) -> u8 {
         match self.mmap.get(self.current + index) {
             Some(value) => *value,

@@ -1,6 +1,6 @@
 use super::token_type::TokenType;
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct Token {
     pub line: usize,
     pub column: usize,

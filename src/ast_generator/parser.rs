@@ -10,7 +10,6 @@ use crate::{
     ast_generator::{
         ast::{enums::Enum, function::Function, variables::DataType},
         statement_parser::parse_scope_block,
-        utils::parse_datatype,
     },
     tokens::{
         error::{Error, ParseError},
@@ -115,14 +114,14 @@ fn parse_global_stmt(
                     }
                     Err(e) => {
                         utils::print_error(curr_file_name, "import", e);
-                        synchronize(head);
+                        head.synchronize();
                     }
                 }
 
                 head.advance();
                 if let Err(e) = head.require_current_is(TokenType::Semicolon) {
                     utils::print_error(curr_file_name, &head.prev.lexeme, e);
-                    synchronize(head);
+                    head.synchronize();
                     continue;
                 }
             }
@@ -141,7 +140,7 @@ fn parse_global_stmt(
                     }
                     Err(e) => {
                         utils::print_error(curr_file_name, &head.prev.lexeme, e);
-                        synchronize(head);
+                        head.synchronize();
                     }
                 }
             }
@@ -176,7 +175,7 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
 
     // Function argument parsing
     while !matches!(head.curr.ttype, TokenType::RightParen) {
-        args.push(parse_argument(head)?);
+        args.push(head.parse_argument()?);
 
         match head.curr.ttype {
             TokenType::RightParen => break,
@@ -207,7 +206,7 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
         TokenType::Arrow => {
             // -> -> datatype
             head.advance();
-            function.ret_type(utils::parse_datatype(head)?);
+            function.ret_type(head.parse_datatype()?);
 
             // Function body parsing
             head.require_current_is(TokenType::LeftBrace)?;
@@ -249,7 +248,7 @@ fn parse_enum_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
         let variant_type = match head.curr.ttype {
             TokenType::LeftParen => {
                 head.advance();
-                let variant_type = parse_datatype(head)?;
+                let variant_type = head.parse_datatype()?;
 
                 head.require_current_is(TokenType::RightParen)?;
                 head.advance();
@@ -306,7 +305,7 @@ fn parse_struct_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
         head.require_current_is(TokenType::Colon)?;
         head.advance();
 
-        let field_type: DataType = parse_datatype(head)?;
+        let field_type: DataType = head.parse_datatype()?;
 
         fields.push((field_name, field_type));
 
@@ -331,29 +330,4 @@ fn parse_struct_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
     head.advance();
 
     Ok(Ast::Struct(Struct::new(struct_name, fields)))
-}
-
-fn parse_argument(head: &mut ParserHead) -> Result<Argument, ParseError> {
-    head.require_current_is(TokenType::Identifier)?;
-    let field_name = std::mem::take(&mut head.curr);
-
-    // arg_name -> :
-    head.advance();
-    head.require_current_is(TokenType::Colon)?;
-
-    // : -> datatype
-    head.advance();
-
-    Ok(Argument(field_name, utils::parse_datatype(head)?))
-}
-
-fn synchronize(head: &mut ParserHead) {
-    loop {
-        head.advance();
-
-        match head.curr.ttype {
-            TokenType::Import | TokenType::Struct | TokenType::Fn | TokenType::Eof => break,
-            _ => {}
-        }
-    }
 }

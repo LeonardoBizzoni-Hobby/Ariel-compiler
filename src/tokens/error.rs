@@ -3,9 +3,9 @@ use crate::ast_generator::ast::expressions::Expression;
 use super::{token::Token, token_type::TokenType};
 
 #[derive(Debug)]
-pub enum Error {
-    FileNotFound(String, String),
-    MemoryMapFiled(String, String),
+pub enum Error<'a> {
+    FileNotFound(&'a str, String),
+    MemoryMapFiled(&'a str, String),
 }
 
 #[derive(Debug, Eq, PartialEq)]

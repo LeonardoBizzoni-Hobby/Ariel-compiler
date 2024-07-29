@@ -339,7 +339,7 @@ pub fn parse_variable_declaration(
     let variable: ScopeBoundStatement = match head.curr.ttype {
         TokenType::Colon => {
             head.advance();
-            let datatype = utils::parse_datatype(head)?;
+            let datatype = head.parse_datatype()?;
 
             match head.require_current_is(TokenType::Equal) {
                 Ok(_) => {

@@ -203,18 +203,13 @@ pub fn get_token(source: &mut SourceFile) -> Box<Token> {
     }
 }
 
+#[inline]
 fn make_token(ttype: TokenType, source: &mut SourceFile) -> Box<Token> {
-    let start: usize = source.start;
-    let current: usize = source.current;
-
-    let binding: Vec<u8> = source.mmap[start..current].to_vec();
-    let lexeme: String = String::from_utf8_lossy(&binding).to_string();
-
     Box::new(Token::new(
         source.line,
-        source.column - lexeme.len(),
+        source.column - (source.current - source.start),
         ttype,
-        lexeme,
+        source.build_lexeme(),
         source.name.clone(),
     ))
 }
@@ -296,11 +291,7 @@ fn make_identifier_token(source: &mut SourceFile) -> Box<Token> {
         advance(source);
     }
 
-    let start: usize = source.start;
-    let current: usize = source.current;
-    let identifier: String = String::from_utf8_lossy(&source.mmap[start..current]).to_string();
-
-    match KEYWORD.get(&identifier) {
+    match KEYWORD.get(&source.build_lexeme()) {
         Some(token_type) => make_token(token_type.clone(), source),
         None => make_token(TokenType::Identifier, source),
     }
@@ -362,6 +353,7 @@ fn skip_whitespace(source: &mut SourceFile) {
     }
 }
 
+#[inline]
 fn advance(source: &mut SourceFile) -> u8 {
     match source.peek() {
         0 => 0,
@@ -383,13 +375,15 @@ mod tests {
     fn scan_file(path: &str) -> Vec<Box<Token>> {
         let mut scanned: Vec<Box<Token>> = vec![];
         let mut source = SourceFile::new(path).unwrap();
-        loop {
-            let tk = get_token(&mut source);
-            scanned.push(Box::clone(&tk));
 
+        let mut eof_found = false;
+        while !eof_found {
+            let tk = get_token(&mut source);
             if tk.ttype == TokenType::Eof {
-                break;
+                eof_found = true;
             }
+
+            scanned.push(tk);
         }
 
         return scanned;
