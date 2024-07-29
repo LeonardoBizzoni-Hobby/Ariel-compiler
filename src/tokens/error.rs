@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use crate::ast_generator::ast::expressions::Expression;
 
 use super::{token::Token, token_type::TokenType};
@@ -11,49 +9,43 @@ pub enum Error {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-#[allow(dead_code)]
 pub enum ParseError {
     UnexpectedToken {
-        line: usize,
-        col: usize,
-        found: TokenType,
+        token: Box<Token>,
         expected: TokenType,
         msg: Option<String>,
     },
     InvalidDataType {
-        line: usize,
-        col: usize,
-        found: TokenType,
+        token: Box<Token>,
         msg: Option<String>,
     },
     InvalidVariableDeclaration {
-        line: usize,
-        column: usize,
+        token: Box<Token>,
     },
     LoopBodyNotFound {
-        body: Arc<Token>,
+        body: Box<Token>,
     },
     InvalidAssignmentExpression {
-        operation: Arc<Token>,
+        operation: Box<Token>,
         assign_to: Box<Expression>,
     },
     InvalidExpression {
-        token: Arc<Token>,
+        token: Box<Token>,
     },
-    InvalidIterator {
-        token: Arc<Token>,
-        msg: Option<String>,
-    },
+    // InvalidIterator {
+    //     token: Box<Token>,
+    //     msg: Option<String>,
+    // },
     InvalidFnName {
-        name: Arc<Token>,
+        name: Box<Token>,
     },
     InvalidFnBody {
-        body: Arc<Token>,
+        body: Box<Token>,
     },
     InvalidVariableAssignment {
-        value: Arc<Token>,
+        value: Box<Token>,
     },
     InvalidAddressOfValue {
-        at: Arc<Token>,
+        at: Box<Token>,
     },
 }

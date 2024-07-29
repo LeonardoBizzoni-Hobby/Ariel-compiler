@@ -9,7 +9,8 @@ use colored::Colorize;
 use crate::{
     ast_generator::{
         ast::{enums::Enum, function::Function, variables::DataType},
-        statement_parser::parse_scope_block, utils::parse_datatype,
+        statement_parser::parse_scope_block,
+        utils::parse_datatype,
     },
     tokens::{
         error::{Error, ParseError},
@@ -59,10 +60,12 @@ pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Ast
         },
     };
 
-    let mut curr: Arc<Token> = tokenizer::get_token(&mut source);
-    let mut prev: Arc<Token> = Arc::new(Token::empty());
     let mut handlers: VecDeque<JoinHandle<Vec<Ast>>> = VecDeque::new();
-    let mut head: ParserHead = ParserHead::new(&mut curr, &mut prev, &mut source);
+    let mut head: ParserHead = ParserHead::new(
+        tokenizer::get_token(&mut source),
+        Box::new(Token::default()),
+        &mut source,
+    );
 
     // Actual parse loop
     parse_global_stmt(&mut head, &mut ast, imported_files, &mut handlers, path);
@@ -98,15 +101,15 @@ fn parse_global_stmt(
         match head.curr.ttype {
             TokenType::Eof => break,
             TokenType::Import => {
-                utils::advance(head);
+                head.advance();
 
-                match utils::require_token_type(&head.curr, TokenType::String) {
+                match head.require_current_is(TokenType::String) {
                     Ok(_) => {
                         // need to be cloned because of the move in the closure
                         let imported_path = head.curr.lexeme.clone();
                         let imported_files = Arc::clone(&imported_files);
 
-                        thread_handles.push_back(thread::spawn(move || {
+                        thread_handles.push_back(thread::spawn(move || -> Vec<Ast> {
                             parse(&imported_path, imported_files)
                         }));
                     }
@@ -116,8 +119,8 @@ fn parse_global_stmt(
                     }
                 }
 
-                utils::advance(head);
-                if let Err(e) = utils::require_token_type(&mut head.curr, TokenType::Semicolon) {
+                head.advance();
+                if let Err(e) = head.require_current_is(TokenType::Semicolon) {
                     utils::print_error(curr_file_name, &head.prev.lexeme, e);
                     synchronize(head);
                     continue;
@@ -152,28 +155,24 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
     let mut args: Vec<Argument> = vec![];
 
     // fn -> fn_name
-    utils::advance(head);
+    head.advance();
 
     match head.curr.ttype {
         TokenType::Main => {
-            function = Function::make_main(Arc::clone(head.curr));
+            function = Function::make_main(std::mem::take(&mut head.curr));
         }
         TokenType::Identifier => {
-            function = Function::make_func(Arc::clone(head.curr));
+            function = Function::make_func(std::mem::take(&mut head.curr));
         }
-        _ => {
-            return Err(ParseError::InvalidFnName {
-                name: Arc::clone(head.curr),
-            })
-        }
+        _ => return Err(ParseError::InvalidFnName { name: std::mem::take(&mut  head.curr) }),
     }
 
     // fn_name -> (
-    utils::advance(head);
-    utils::require_token_type(head.curr, TokenType::LeftParen)?;
+    head.advance();
+    head.require_current_is(TokenType::LeftParen)?;
 
     // ( -> arg_name:datatype
-    utils::advance(head);
+    head.advance();
 
     // Function argument parsing
     while !matches!(head.curr.ttype, TokenType::RightParen) {
@@ -183,13 +182,11 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
             TokenType::RightParen => break,
             TokenType::Comma => {
                 // , -> arg_name:datatype
-                utils::advance(head);
+                head.advance();
             }
             _ => {
                 return Err(ParseError::UnexpectedToken {
-                    line: head.curr.line,
-                    col: head.curr.column,
-                    found: head.curr.ttype.clone(),
+                    token: std::mem::take(&mut head.curr),
                     expected: TokenType::RightParen,
                     msg: Some(String::from(
                         "After a function argument there should have been either a `,` or a `)`.",
@@ -202,33 +199,29 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
     // ) -> ->
     // ) -> {
     // ) -> ;
-    utils::advance(head);
+    head.advance();
     function.args(args);
 
     // Return type parsing
     let body = match head.curr.ttype {
         TokenType::Arrow => {
             // -> -> datatype
-            utils::advance(head);
+            head.advance();
             function.ret_type(utils::parse_datatype(head)?);
 
             // Function body parsing
-            utils::require_token_type(head.curr, TokenType::LeftBrace)?;
-            utils::advance(head);
+            head.require_current_is(TokenType::LeftBrace)?;
+            head.advance();
 
             Some(parse_scope_block(head)?)
         }
         TokenType::LeftBrace => {
             // { -> scope body
-            utils::advance(head);
+            head.advance();
             Some(parse_scope_block(head)?)
         }
         TokenType::Semicolon => None,
-        _ => {
-            return Err(ParseError::InvalidFnBody {
-                body: Arc::clone(head.curr),
-            })
-        }
+        _ => return Err(ParseError::InvalidFnBody { body: std::mem::take(&mut head.curr) }),
     };
 
     function.body(body);
@@ -237,47 +230,45 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
 
 fn parse_enum_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
     // enum -> enum_name
-    utils::advance(head);
+    head.advance();
 
-    utils::require_token_type(&head.curr, TokenType::Identifier)?;
-    utils::advance(head);
+    head.require_current_is(TokenType::Identifier)?;
+    head.advance();
 
-    let enum_name = Arc::clone(head.prev);
+    let enum_name = std::mem::take(&mut head.prev);
 
-    utils::require_token_type(&head.curr, TokenType::LeftBrace)?;
-    utils::advance(head);
+    head.require_current_is(TokenType::LeftBrace)?;
+    head.advance();
 
-    let mut variants: HashMap<Arc<Token>, Option<DataType>> = HashMap::new();
+    let mut variants: HashMap<Box<Token>, Option<DataType>> = HashMap::new();
     while !matches!(head.curr.ttype, TokenType::RightBrace) {
-        utils::require_token_type(&head.curr, TokenType::Identifier)?;
-        utils::advance(head);
+        head.require_current_is(TokenType::Identifier)?;
+        head.advance();
 
-        let variant_name = Arc::clone(head.prev);
+        let variant_name = std::mem::take(&mut head.prev);
         let variant_type = match head.curr.ttype {
             TokenType::LeftParen => {
-                utils::advance(head);
+                head.advance();
                 let variant_type = parse_datatype(head)?;
 
-                utils::require_token_type(&head.curr, TokenType::RightParen)?;
-                utils::advance(head);
+                head.require_current_is(TokenType::RightParen)?;
+                head.advance();
 
                 Some(variant_type)
-            },
+            }
             _ => None,
         };
 
-        variants.insert(variant_name, variant_type);
+        variants.insert(Box::from(*variant_name), variant_type);
 
         match head.curr.ttype {
             TokenType::RightBrace => break,
             TokenType::Comma => {
-                utils::advance(head);
+                head.advance();
             }
             _ => {
                 return Err(ParseError::UnexpectedToken {
-                    line: head.curr.line,
-                    col: head.curr.column,
-                    found: head.curr.ttype.clone(),
+                    token: std::mem::take(&mut head.curr),
                     expected: TokenType::RightParen,
                     msg: Some(String::from(
                         "After an enum variant there should have been either a `,` or a `}`.",
@@ -287,33 +278,33 @@ fn parse_enum_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
         }
     }
 
-    utils::require_token_type(&head.curr, TokenType::RightBrace)?;
-    utils::advance(head);
+    head.require_current_is(TokenType::RightBrace)?;
+    head.advance();
 
-    Ok(Ast::Enum(Enum::new(enum_name, variants)))
+    Ok(Ast::Enum(Enum::new(Box::from(*enum_name), variants)))
 }
 
 fn parse_struct_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
     // struct -> struct_name
-    utils::advance(head);
+    head.advance();
 
-    utils::require_token_type(&head.curr, TokenType::Identifier)?;
-    utils::advance(head);
+    head.require_current_is(TokenType::Identifier)?;
+    head.advance();
 
-    let struct_name = Arc::clone(head.prev);
+    let struct_name = std::mem::take(&mut head.prev);
 
-    utils::require_token_type(&head.curr, TokenType::LeftBrace)?;
-    utils::advance(head);
+    head.require_current_is(TokenType::LeftBrace)?;
+    head.advance();
 
-    let mut fields: Vec<(Arc<Token>, DataType)> = vec![];
+    let mut fields: Vec<(Box<Token>, DataType)> = vec![];
     while !matches!(head.curr.ttype, TokenType::RightBrace) {
-        utils::require_token_type(&head.curr, TokenType::Identifier)?;
-        utils::advance(head);
+        head.require_current_is(TokenType::Identifier)?;
+        head.advance();
 
-        let field_name = Arc::clone(head.prev);
+        let field_name = std::mem::take(&mut head.prev);
 
-        utils::require_token_type(&head.curr, TokenType::Colon)?;
-        utils::advance(head);
+        head.require_current_is(TokenType::Colon)?;
+        head.advance();
 
         let field_type: DataType = parse_datatype(head)?;
 
@@ -322,13 +313,11 @@ fn parse_struct_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
         match head.curr.ttype {
             TokenType::RightBrace => break,
             TokenType::Comma => {
-                utils::advance(head);
+                head.advance();
             }
             _ => {
                 return Err(ParseError::UnexpectedToken {
-                    line: head.curr.line,
-                    col: head.curr.column,
-                    found: head.curr.ttype.clone(),
+                    token: std::mem::take(&mut head.curr),
                     expected: TokenType::RightParen,
                     msg: Some(String::from(
                         "After a struct field there should have been either a `,` or a `}`.",
@@ -338,29 +327,29 @@ fn parse_struct_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
         }
     }
 
-    utils::require_token_type(&head.curr, TokenType::RightBrace)?;
-    utils::advance(head);
+    head.require_current_is(TokenType::RightBrace)?;
+    head.advance();
 
     Ok(Ast::Struct(Struct::new(struct_name, fields)))
 }
 
 fn parse_argument(head: &mut ParserHead) -> Result<Argument, ParseError> {
-    utils::require_token_type(head.curr, TokenType::Identifier)?;
-    let field_name = Arc::clone(head.curr);
+    head.require_current_is(TokenType::Identifier)?;
+    let field_name = std::mem::take(&mut head.curr);
 
     // arg_name -> :
-    utils::advance(head);
-    utils::require_token_type(head.curr, TokenType::Colon)?;
+    head.advance();
+    head.require_current_is(TokenType::Colon)?;
 
     // : -> datatype
-    utils::advance(head);
+    head.advance();
 
     Ok(Argument(field_name, utils::parse_datatype(head)?))
 }
 
 fn synchronize(head: &mut ParserHead) {
     loop {
-        utils::advance(head);
+        head.advance();
 
         match head.curr.ttype {
             TokenType::Import | TokenType::Struct | TokenType::Fn | TokenType::Eof => break,

@@ -9,6 +9,18 @@ pub struct Token {
     pub found_in: String,
 }
 
+impl Default for Token {
+    fn default() -> Self {
+        Self {
+            line: 0,
+            column: 0,
+            ttype: TokenType::Unknown('\0'),
+            lexeme: "\0".to_string(),
+            found_in: "\0".to_string(),
+        }
+    }
+}
+
 impl Token {
     pub fn new(
         line: usize,
@@ -23,16 +35,6 @@ impl Token {
             ttype,
             lexeme,
             found_in,
-        }
-    }
-
-    pub fn empty() -> Self {
-        Self {
-            line: 0,
-            column: 0,
-            ttype: TokenType::Unknown('\0'),
-            lexeme: "\0".to_string(),
-            found_in: "\0".to_string(),
         }
     }
 }

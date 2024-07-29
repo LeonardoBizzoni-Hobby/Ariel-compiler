@@ -1,23 +1,23 @@
-use std::{fmt::Display, sync::Arc};
+use std::fmt::Display;
 
 use crate::tokens::token::Token;
 
 #[derive(Debug, Hash, PartialEq, Eq)]
 pub enum Expression {
     Name {
-        name: Arc<Token>,
+        name: Box<Token>,
     },
     GetField {
         from: Box<Expression>,
-        get: Arc<Token>,
+        get: Box<Token>,
     },
     Binary {
         left: Box<Expression>,
-        operation: Arc<Token>,
+        operation: Box<Token>,
         right: Box<Expression>,
     },
     Unary {
-        operation: Arc<Token>,
+        operation: Box<Token>,
         value: Box<Expression>,
     },
     FnCall {
@@ -25,7 +25,7 @@ pub enum Expression {
         args: Vec<Expression>,
     },
     Literal {
-        literal: Arc<Token>,
+        literal: Box<Token>,
     },
     Nested {
         nested: Box<Expression>,

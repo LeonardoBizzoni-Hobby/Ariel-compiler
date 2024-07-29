@@ -1,18 +1,16 @@
-use std::sync::Arc;
-
 use crate::tokens::token::Token;
 
 use super::scopebound_statements::ScopeBoundStatement;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Variable {
-    _name: Arc<Token>,
+    _name: Box<Token>,
     _datatype: Option<DataType>,
     _value: Box<ScopeBoundStatement>,
 }
 
 impl Variable {
-    pub fn new(name: Arc<Token>, datatype: Option<DataType>, value: Box<ScopeBoundStatement>) -> Self {
+    pub fn new(name: Box<Token>, datatype: Option<DataType>, value: Box<ScopeBoundStatement>) -> Self {
         Self {
             _name: name,
             _datatype: datatype,
@@ -40,5 +38,5 @@ pub enum DataType {
     Void,
     Array(Box<DataType>),
     Pointer(Box<DataType>),
-    Compound { name: Arc<Token> },
+    Compound { name: Box<Token> },
 }

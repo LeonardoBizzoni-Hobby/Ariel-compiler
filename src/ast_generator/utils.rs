@@ -1,8 +1,6 @@
-use std::sync::Arc;
-
 use colored::Colorize;
 
-use crate::tokens::{error::ParseError, token::Token, token_type::TokenType, tokenizer};
+use crate::tokens::{error::ParseError, token_type::TokenType};
 
 use super::{ast::variables::DataType, parser_head::ParserHead};
 
@@ -28,9 +26,7 @@ pub fn parse_datatype(head: &mut ParserHead) -> Result<DataType, ParseError> {
                 Ok(datatype)
             } else {
                 Err(ParseError::InvalidDataType {
-                    line: head.curr.line,
-                    col: head.curr.column,
-                    found: head.curr.ttype.clone(),
+                    token: std::mem::take(&mut head.curr),
                     msg: Some(
                         "`void` by itself isn't a valid datatype, it should have been a void pointer `void*`."
                             .to_owned(),
@@ -39,10 +35,10 @@ pub fn parse_datatype(head: &mut ParserHead) -> Result<DataType, ParseError> {
             }
         }
         TokenType::LeftSquare => {
-            advance(head);
+            head.advance();
             let array_of: DataType = parse_datatype(head)?;
 
-            require_token_type(head.curr, TokenType::RightSquare)?;
+            head.require_current_is(TokenType::RightSquare)?;
             Ok(handle_pointer_datatype(
                 DataType::Array(Box::new(array_of)),
                 head,
@@ -50,14 +46,12 @@ pub fn parse_datatype(head: &mut ParserHead) -> Result<DataType, ParseError> {
         }
         TokenType::Identifier => Ok(handle_pointer_datatype(
             DataType::Compound {
-                name: Arc::clone(head.curr),
+                name: std::mem::take(&mut head.curr),
             },
             head,
         )),
         _ => Err(ParseError::InvalidDataType {
-            line: head.curr.line,
-            col: head.curr.column,
-            found: head.curr.ttype.clone(),
+            token: std::mem::take(&mut head.curr),
             msg: None,
         }),
     }
@@ -70,73 +64,59 @@ fn handle_pointer_datatype(datatype: DataType, head: &mut ParserHead) -> DataTyp
     // datatype -> ,
     // datatype -> )
     // datatype -> {
-    advance(head);
+    head.advance();
 
     while matches!(head.curr.ttype, TokenType::Star) {
-        advance(head);
+        head.advance();
         res = DataType::Pointer(Box::new(res));
     }
 
     res
 }
 
-pub fn require_token_type(curr: &Token, expected: TokenType) -> Result<(), ParseError> {
-    if curr.ttype == expected {
-        Ok(())
-    } else {
-        Err(ParseError::UnexpectedToken {
-            line: curr.line,
-            col: curr.column,
-            found: curr.ttype.clone(),
-            expected,
-            msg: None,
-        })
-    }
-}
-
-pub fn advance(head: &mut ParserHead) {
-    *head.prev = Arc::clone(head.curr);
-    *head.curr = tokenizer::get_token(head.source);
-}
-
 pub fn print_error(source: &str, after: &str, e: ParseError) {
     match e {
         ParseError::UnexpectedToken {
-            line,
-            col,
-            found,
+            token,
             expected,
             msg,
         } => {
             if let Some(msg) = msg {
-                eprintln!("[{}] {msg}", format!("{source} {line}:{col}").red().bold());
+                eprintln!(
+                    "[{}] {msg}",
+                    format!("{source} {}:{}", token.line, token.column)
+                        .red()
+                        .bold()
+                );
             } else {
                 eprintln!("[{}] :: there should have been a {} after the token `{after}`, but instead there was a {}.",
-                format!("{source} {line}:{col}").red().bold(),
+                format!("{source} {}:{}", token.line, token.column).red().bold(),
                 format!("{expected}").blue().bold(),
-                format!("{found}").red().italic());
+                format!("{}", token.found_in).red().italic());
             }
         }
-        ParseError::InvalidDataType {
-            line,
-            col,
-            found,
-            msg,
-        } => {
+        ParseError::InvalidDataType { token, msg } => {
             if let Some(msg) = msg {
-                eprintln!("[{}] {msg}", format!("{source} {line}:{col}").red().bold());
+                eprintln!(
+                    "[{}] {msg}",
+                    format!("{source} {}:{}", token.line, token.column)
+                        .red()
+                        .bold()
+                );
             } else {
                 eprintln!(
                     "[{}] :: {} is not a valid data type.",
-                    format!("{source} {line}:{col}").red().bold(),
-                    format!("{found}").red().italic()
+                    format!("{source} {}:{}", token.line, token.column)
+                        .red()
+                        .bold(),
+                    format!("{}", token.found_in).red().italic()
                 );
             }
         }
-        ParseError::InvalidVariableDeclaration { line, column } => {
+        ParseError::InvalidVariableDeclaration { token } => {
             eprintln!(
                 "[{}] :: You can create a variable using a dynamic definition `:=` followed by the value to assign to the variable, or by specifying the datatype statically. You cannot create a variable without assign it a value.",
-                format!("{source} {line}:{column}").red().bold()
+                format!("{source} {}:{}", token.line, token.column).red().bold()
             );
         }
         ParseError::LoopBodyNotFound { body } => {
@@ -166,24 +146,24 @@ pub fn print_error(source: &str, after: &str, e: ParseError) {
                     .bold()
             );
         }
-        ParseError::InvalidIterator { token, msg } => {
-            if let Some(msg) = msg {
-                eprintln!(
-                    "[{}] {msg}",
-                    format!("{} {}:{}", token.found_in, token.line, token.column)
-                        .red()
-                        .bold()
-                );
-            } else {
-                eprintln!(
-                    "[{}] :: {} is not a valid iterator.",
-                    format!("{} {}:{}", token.found_in, token.line, token.column)
-                        .red()
-                        .bold(),
-                    format!("{} ({})", token.lexeme, token.ttype).red().italic()
-                );
-            }
-        }
+        // ParseError::InvalidIterator { token, msg } => {
+        //     if let Some(msg) = msg {
+        //         eprintln!(
+        //             "[{}] {msg}",
+        //             format!("{} {}:{}", token.found_in, token.line, token.column)
+        //                 .red()
+        //                 .bold()
+        //         );
+        //     } else {
+        //         eprintln!(
+        //             "[{}] :: {} is not a valid iterator.",
+        //             format!("{} {}:{}", token.found_in, token.line, token.column)
+        //                 .red()
+        //                 .bold(),
+        //             format!("{} ({})", token.lexeme, token.ttype).red().italic()
+        //         );
+        //     }
+        // }
         ParseError::InvalidFnName { name } => {
             eprintln!(
                 "[{}] :: {} is not a valid function name.",
@@ -219,6 +199,6 @@ pub fn print_error(source: &str, after: &str, e: ParseError) {
                     .bold(),
                 format!("{}", at.lexeme).red().italic()
             );
-        },
+        }
     }
 }

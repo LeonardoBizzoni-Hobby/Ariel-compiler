@@ -1,12 +1,6 @@
-use std::sync::Arc;
-
 use crate::tokens::{error::ParseError, token_type::TokenType};
 
-use super::{
-    ast::expressions::Expression,
-    parser_head::ParserHead,
-    utils::{self},
-};
+use super::{ast::expressions::Expression, parser_head::ParserHead};
 
 pub fn parse_expression(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
     let left: Box<Expression> = assignment_expression(head)?;
@@ -29,8 +23,8 @@ pub fn assignment_expression(head: &mut ParserHead) -> Result<Box<Expression>, P
         | TokenType::PowerEquals
         | TokenType::ShiftLeftEqual
         | TokenType::ShiftRightEqual => {
-            let operation = Arc::clone(head.curr);
-            utils::advance(head);
+            let operation = std::mem::take(&mut head.curr);
+            head.advance();
             let value: Box<Expression> = or_expression(head)?;
 
             match *left {
@@ -55,11 +49,11 @@ pub fn or_expression(head: &mut ParserHead) -> Result<Box<Expression>, ParseErro
     let mut left: Box<Expression> = and_expression(head)?;
 
     while matches!(head.curr.ttype, TokenType::Or | TokenType::BitOr) {
-        utils::advance(head);
+        head.advance();
 
         left = Box::new(Expression::Binary {
             left,
-            operation: Arc::clone(&head.prev),
+            operation: std::mem::take(&mut head.prev),
             right: and_expression(head)?,
         });
     }
@@ -71,8 +65,8 @@ pub fn and_expression(head: &mut ParserHead) -> Result<Box<Expression>, ParseErr
     let mut left: Box<Expression> = equality_check(head)?;
 
     while matches!(head.curr.ttype, TokenType::And | TokenType::BitAnd) {
-        let operation = Arc::clone(head.curr);
-        utils::advance(head);
+        let operation = std::mem::take(&mut head.curr);
+        head.advance();
 
         left = Box::new(Expression::Binary {
             left,
@@ -88,10 +82,10 @@ pub fn equality_check(head: &mut ParserHead) -> Result<Box<Expression>, ParseErr
     let mut left: Box<Expression> = comparison_check(head)?;
 
     while matches!(head.curr.ttype, TokenType::EqualEqual | TokenType::NotEqual) {
-        utils::advance(head);
+        head.advance();
         left = Box::new(Expression::Binary {
             left,
-            operation: Arc::clone(&head.prev),
+            operation: std::mem::take(&mut head.prev),
             right: comparison_check(head)?,
         });
     }
@@ -106,8 +100,8 @@ pub fn comparison_check(head: &mut ParserHead) -> Result<Box<Expression>, ParseE
         head.curr.ttype,
         TokenType::Greater | TokenType::GreaterEqual | TokenType::Less | TokenType::LessEqual
     ) {
-        let operation = Arc::clone(head.curr);
-        utils::advance(head);
+        let operation = std::mem::take(&mut head.curr);
+        head.advance();
 
         left = Box::new(Expression::Binary {
             left,
@@ -130,8 +124,8 @@ pub fn term(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
             | TokenType::ShiftLeft
             | TokenType::ShiftRight
     ) {
-        let operation = Arc::clone(head.curr);
-        utils::advance(head);
+        let operation = std::mem::take(&mut head.curr);
+        head.advance();
 
         left = Box::new(Expression::Binary {
             left,
@@ -150,8 +144,8 @@ pub fn factor(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
         head.curr.ttype,
         TokenType::Star | TokenType::Slash | TokenType::Power | TokenType::IntegerSlash
     ) {
-        let operation = Arc::clone(head.curr);
-        utils::advance(head);
+        let operation = std::mem::take(&mut head.curr);
+        head.advance();
 
         left = Box::new(Expression::Binary {
             left,
@@ -166,9 +160,9 @@ pub fn factor(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
 pub fn unary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
     match head.curr.ttype {
         TokenType::Not | TokenType::Minus => Ok(Box::new(Expression::Unary {
-            operation: Arc::clone(head.curr),
+            operation: std::mem::take(&mut head.curr),
             value: {
-                utils::advance(head);
+                head.advance();
                 unary(head)?
             },
         })),
@@ -181,18 +175,18 @@ pub fn call(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
 
     while matches!(head.curr.ttype, TokenType::LeftParen) {
         let mut args: Vec<Expression> = vec![];
-        utils::advance(head);
+        head.advance();
 
         if !matches!(head.curr.ttype, TokenType::RightParen) {
             args.push(*parse_expression(head)?);
 
             while !matches!(head.curr.ttype, TokenType::Comma) {
-                utils::advance(head);
+                head.advance();
                 args.push(*parse_expression(head)?);
             }
         }
 
-        utils::require_token_type(head.curr, TokenType::RightParen)?;
+        head.require_current_is(TokenType::RightParen)?;
         expr = Box::new(Expression::FnCall {
             fn_identifier: expr,
             args,
@@ -209,11 +203,11 @@ pub fn get(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
         head.curr.ttype,
         TokenType::Dot | TokenType::StaticScopeGetter
     ) {
-        utils::advance(head);
+        head.advance();
 
-        utils::require_token_type(head.curr, TokenType::Identifier)?;
-        let property = Arc::clone(head.curr);
-        utils::advance(head);
+        head.require_current_is(TokenType::Identifier)?;
+        let property = std::mem::take(&mut head.curr);
+        head.advance();
 
         expr = Box::new(Expression::GetField {
             from: expr,
@@ -227,9 +221,9 @@ pub fn get(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
 pub fn primary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
     match head.curr.ttype {
         TokenType::Identifier | TokenType::DontCare => {
-            utils::advance(head);
+            head.advance();
             Ok(Box::new(Expression::Name {
-                name: Arc::clone(head.prev),
+                name: std::mem::take(&mut head.prev),
             }))
         }
         TokenType::Integer
@@ -238,15 +232,15 @@ pub fn primary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
         | TokenType::True
         | TokenType::False
         | TokenType::Nil => {
-            utils::advance(head);
+            head.advance();
             Ok(Box::new(Expression::Literal {
-                literal: Arc::clone(head.prev),
+                literal: std::mem::take(&mut head.prev),
             }))
         }
         TokenType::BitAnd => {
-            utils::advance(head);
+            head.advance();
 
-            let next_tk = Arc::clone(head.curr);
+            let next_tk = std::mem::take(&mut head.curr);
             let of: Box<Expression> = primary(head)?;
             match *of {
                 Expression::Name { .. } => Ok(Box::new(Expression::AddressOf { of })),
@@ -254,7 +248,7 @@ pub fn primary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
             }
         }
         TokenType::LeftSquare => {
-            utils::advance(head);
+            head.advance();
             let mut values: Vec<Box<Expression>> = vec![];
 
             while !matches!(head.curr.ttype, TokenType::RightSquare) {
@@ -263,13 +257,11 @@ pub fn primary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
                 match head.curr.ttype {
                     TokenType::RightSquare => break,
                     TokenType::Comma => {
-                        utils::advance(head);
+                        head.advance();
                     }
                     _ => {
                         return Err(ParseError::UnexpectedToken {
-                            line: head.curr.line,
-                            col: head.curr.column,
-                            found: head.curr.ttype.clone(),
+                            token: std::mem::take(&mut head.curr),
                             expected: TokenType::RightSquare,
                             msg: None,
                         });
@@ -277,21 +269,21 @@ pub fn primary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
                 }
             }
 
-            utils::require_token_type(head.curr, TokenType::RightSquare)?;
-            utils::advance(head);
+            head.require_current_is(TokenType::RightSquare)?;
+            head.advance();
 
             Ok(Box::new(Expression::ArrayLiteral { values }))
         }
         TokenType::LeftParen => {
-            utils::advance(head);
+            head.advance();
             let nested: Box<Expression> = parse_expression(head)?;
 
-            utils::require_token_type(head.curr, TokenType::RightParen)?;
-            utils::advance(head);
+            head.require_current_is(TokenType::RightParen)?;
+            head.advance();
             Ok(Box::new(Expression::Nested { nested }))
         }
         _ => Err(ParseError::InvalidExpression {
-            token: Arc::clone(head.curr),
+            token: std::mem::take(&mut head.curr),
         }),
     }
 }
@@ -299,19 +291,19 @@ pub fn primary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
 pub fn match_pattern_expression(head: &mut ParserHead) -> Result<Expression, ParseError> {
     match head.curr.ttype {
         TokenType::Identifier | TokenType::DontCare => {
-            utils::advance(head);
+            head.advance();
             Ok(Expression::Name {
-                name: Arc::clone(head.prev),
+                name: std::mem::take(&mut head.prev),
             })
         }
         TokenType::Integer => {
-            utils::advance(head);
+            head.advance();
             match head.curr.ttype {
                 TokenType::SequenceUpTo | TokenType::SequenceUpToIncluding => {
                     let start: isize = head.prev.lexeme.parse().unwrap();
-                    utils::advance(head);
+                    head.advance();
 
-                    utils::require_token_type(&head.curr, TokenType::Integer)?;
+                    head.require_current_is(TokenType::Integer)?;
                     let end: isize = head.curr.lexeme.parse::<isize>().unwrap()
                         + if matches!(head.prev.ttype, TokenType::SequenceUpTo) {
                             -1
@@ -319,12 +311,12 @@ pub fn match_pattern_expression(head: &mut ParserHead) -> Result<Expression, Par
                             0
                         };
 
-                    utils::advance(head);
+                    head.advance();
 
                     Ok(Expression::Sequence { start, end })
                 }
                 _ => Ok(Expression::Literal {
-                    literal: Arc::clone(head.prev),
+                    literal: std::mem::take(&mut head.prev),
                 }),
             }
         }
@@ -333,13 +325,13 @@ pub fn match_pattern_expression(head: &mut ParserHead) -> Result<Expression, Par
         | TokenType::True
         | TokenType::False
         | TokenType::Nil => {
-            utils::advance(head);
+            head.advance();
             Ok(Expression::Literal {
-                literal: Arc::clone(head.prev),
+                literal: std::mem::take(&mut head.prev),
             })
         }
         _ => Err(ParseError::InvalidExpression {
-            token: Arc::clone(head.curr),
+            token: std::mem::take(&mut head.curr),
         }),
     }
 }

@@ -1,10 +1,6 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashSet, sync::{Arc, Mutex}};
 
-use ast_generator::ast::{variables::DataType, Ast};
-use tokens::token::Token;
+use ast_generator::ast::Ast;
 
 use crate::ast_generator::parser;
 
@@ -19,7 +15,7 @@ pub fn compile(source: &str) {
     #[cfg(debug_assertions)]
     let start_timer = std::time::Instant::now();
 
-    let ast_forest: Vec<Ast> = parser::parse(source, Arc::clone(&imported_files));
+    let ast_forest: Vec<Ast> = parser::parse(source, imported_files);
 
     #[cfg(debug_assertions)]
     {
@@ -34,28 +30,28 @@ pub fn compile(source: &str) {
         println!("{:#?}", ast_forest);
     }
 
-    let glob_env: HashMap<Arc<Token>, Ast> = HashMap::new();
-    for ast in ast_forest.iter() {
-        match ast {
-            Ast::Fn(func) => {
-                if glob_env.contains_key(&func.name) {
-                    eprintln!("`{}` is defined more then once.", func.name.lexeme);
-                    return;
-                }
+    // let glob_env: HashMap<Arc<Token>, Ast> = HashMap::new();
+    // for ast in ast_forest.iter() {
+    //     match ast {
+    //         Ast::Fn(func) => {
+    //             if glob_env.contains_key(&func.name) {
+    //                 eprintln!("`{}` is defined more then once.", func.name.lexeme);
+    //                 return;
+    //             }
 
-                for arg in func.args.iter() {
-                    match arg.1 {
-                        DataType::Array(..) => todo!(),
-                        DataType::Pointer(..) => todo!(),
-                        DataType::Compound { .. } => {}
-                        _ => {}
-                    }
-                }
+    //             for arg in func.args.iter() {
+    //                 match arg.1 {
+    //                     DataType::Array(..) => todo!(),
+    //                     DataType::Pointer(..) => todo!(),
+    //                     DataType::Compound { .. } => {}
+    //                     _ => {}
+    //                 }
+    //             }
 
-                // glob_env.insert(Arc::clone(&func.name), *ast);
-            }
-            Ast::Enum(..) => todo!(),
-            Ast::Struct(..) => todo!(),
-        }
-    }
+    //             // glob_env.insert(Arc::clone(&func.name), *ast);
+    //         }
+    //         Ast::Enum(..) => todo!(),
+    //         Ast::Struct(..) => todo!(),
+    //     }
+    // }
 }

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use crate::{
     ast_generator::expression_parser,
@@ -25,47 +25,47 @@ pub fn parse_scopebound_statement(
         TokenType::For => parse_for(head),
         TokenType::Let => parse_variable_declaration(head),
         TokenType::LeftBrace => {
-            utils::advance(head);
+            head.advance();
             Ok(ScopeBoundStatement::Scope(parse_scope_block(head)?))
         }
         TokenType::Defer => {
-            utils::advance(head);
+            head.advance();
 
             let stmt: ScopeBoundStatement = parse_scopebound_statement(head)?;
 
             if head.prev.ttype != TokenType::Semicolon {
-                utils::require_token_type(&head.curr, TokenType::Semicolon)?;
-                utils::advance(head);
+                head.require_current_is(TokenType::Semicolon)?;
+                head.advance();
             }
 
             Ok(ScopeBoundStatement::Defer(Box::new(stmt)))
         }
         TokenType::Return => {
-            utils::advance(head);
+            head.advance();
 
             let expr: Option<Box<ScopeBoundStatement>> = match head.curr.ttype {
                 TokenType::Semicolon => None,
                 _ => Some(Box::new(parse_assignable_stmt(head)?)),
             };
 
-            utils::require_token_type(head.curr, TokenType::Semicolon)?;
-            utils::advance(head);
+            head.require_current_is(TokenType::Semicolon)?;
+            head.advance();
 
             Ok(ScopeBoundStatement::Return(expr))
         }
         TokenType::Break => {
-            utils::advance(head);
+            head.advance();
 
-            utils::require_token_type(head.curr, TokenType::Semicolon)?;
-            utils::advance(head);
+            head.require_current_is(TokenType::Semicolon)?;
+            head.advance();
 
             Ok(ScopeBoundStatement::Break)
         }
         TokenType::Continue => {
-            utils::advance(head);
+            head.advance();
 
-            utils::require_token_type(head.curr, TokenType::Semicolon)?;
-            utils::advance(head);
+            head.require_current_is(TokenType::Semicolon)?;
+            head.advance();
 
             Ok(ScopeBoundStatement::Continue)
         }
@@ -86,55 +86,53 @@ pub fn parse_scope_block(head: &mut ParserHead) -> Result<Vec<ScopeBoundStatemen
                     head.curr.ttype,
                     TokenType::Semicolon | TokenType::RightBrace | TokenType::Eof
                 ) {
-                    utils::advance(head);
+                    head.advance();
                 }
 
                 if matches!(head.curr.ttype, TokenType::Semicolon) {
-                    utils::advance(head);
+                    head.advance();
                 }
             }
         }
     }
 
-    utils::require_token_type(&head.curr, TokenType::RightBrace)?;
-    utils::advance(head);
+    head.require_current_is(TokenType::RightBrace)?;
+    head.advance();
 
     Ok(body)
 }
 
 fn parse_match(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
-    utils::advance(head);
+    head.advance();
 
     let on: Expression = *parse_expression(head)?;
 
-    utils::require_token_type(&head.curr, TokenType::LeftBrace)?;
-    utils::advance(head);
+    head.require_current_is(TokenType::LeftBrace)?;
+    head.advance();
 
     let mut cases: HashMap<Expression, Vec<ScopeBoundStatement>> = HashMap::new();
     while !matches!(head.curr.ttype, TokenType::RightBrace) {
         let case: Expression = expression_parser::match_pattern_expression(head)?;
 
-        utils::require_token_type(&head.curr, TokenType::Arrow)?;
-        utils::advance(head);
+        head.require_current_is(TokenType::Arrow)?;
+        head.advance();
 
-        utils::require_token_type(&head.curr, TokenType::LeftBrace)?;
-        utils::advance(head);
+        head.require_current_is(TokenType::LeftBrace)?;
+        head.advance();
 
         let value: Vec<ScopeBoundStatement> = parse_scope_block(head)?;
         cases.insert(case, value);
 
         match head.curr.ttype {
             TokenType::Comma => {
-                utils::advance(head);
+                head.advance();
             }
             TokenType::RightBrace => {
                 break;
             }
             _ => {
                 return Err(ParseError::UnexpectedToken {
-                    line: head.curr.line,
-                    col: head.curr.column,
-                    found: head.curr.ttype.clone(),
+                    token: std::mem::take(&mut head.curr),
                     expected: TokenType::RightParen,
                     msg: None,
                 });
@@ -142,7 +140,7 @@ fn parse_match(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError>
         }
     }
 
-    utils::advance(head);
+    head.advance();
     Ok(ScopeBoundStatement::Match { on, cases })
 }
 
@@ -151,14 +149,14 @@ fn parse_expression_statement(head: &mut ParserHead) -> Result<ScopeBoundStateme
 
     match head.curr.ttype {
         TokenType::Semicolon => {
-            utils::advance(head);
+            head.advance();
             Ok(ScopeBoundStatement::Expression(expr))
         }
         TokenType::RightBrace => {
             Ok(ScopeBoundStatement::ImplicitReturn(expr))
         }
         _ => Err(ParseError::InvalidExpression {
-            token: Arc::clone(head.curr),
+            token: std::mem::take(&mut head.curr),
         }),
     }
 }
@@ -167,22 +165,22 @@ fn parse_for(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
     let parse_value = |head: &mut ParserHead| -> Result<Expression, ParseError> {
         let res: Expression = *parse_expression(head)?;
 
-        utils::require_token_type(&head.curr, TokenType::Semicolon)?;
-        utils::advance(head);
+        head.require_current_is(TokenType::Semicolon)?;
+        head.advance();
 
         Ok(res)
     };
 
     // for -> (
-    utils::advance(head);
+    head.advance();
 
-    utils::require_token_type(&head.curr, TokenType::LeftParen)?;
-    utils::advance(head);
+    head.require_current_is(TokenType::LeftParen)?;
+    head.advance();
 
     let initialization: Option<Box<ScopeBoundStatement>> = match head.curr.ttype {
         TokenType::Let => Some(Box::new(parse_variable_declaration(head)?)),
         TokenType::Semicolon => {
-            utils::advance(head);
+            head.advance();
             None
         }
         _ => Some(Box::new(ScopeBoundStatement::Expression(parse_value(
@@ -192,7 +190,7 @@ fn parse_for(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
 
     let condition: Option<Expression> = match head.curr.ttype {
         TokenType::Semicolon => {
-            utils::advance(head);
+            head.advance();
             None
         }
         _ => Some(parse_value(head)?),
@@ -203,21 +201,21 @@ fn parse_for(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
         _ => Some(*parse_expression(head)?),
     };
 
-    utils::require_token_type(&head.curr, TokenType::RightParen)?;
-    utils::advance(head);
+    head.require_current_is(TokenType::RightParen)?;
+    head.advance();
 
     let body: Option<Vec<ScopeBoundStatement>> = match head.curr.ttype {
         TokenType::Semicolon => {
-            utils::advance(head);
+            head.advance();
             None
         }
         TokenType::LeftBrace => {
-            utils::advance(head);
+            head.advance();
             Some(parse_scope_block(head)?)
         }
         _ => {
             return Err(ParseError::LoopBodyNotFound {
-                body: Arc::clone(head.curr),
+                body: std::mem::take(&mut head.curr),
             })
         }
     };
@@ -231,56 +229,56 @@ fn parse_for(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
 }
 
 pub fn parse_loop(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
-    utils::advance(head);
+    head.advance();
 
     match head.curr.ttype {
         TokenType::LeftBrace => {
-            utils::advance(head);
+            head.advance();
             Ok(ScopeBoundStatement::Loop(Some(parse_scope_block(head)?)))
         }
         TokenType::Semicolon => {
-            utils::advance(head);
+            head.advance();
             Ok(ScopeBoundStatement::Loop(None))
         }
         _ => Err(ParseError::LoopBodyNotFound {
-            body: Arc::clone(head.curr),
+            body: std::mem::take(&mut head.curr),
         }),
     }
 }
 
 pub fn parse_while_loop(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
-    utils::advance(head);
+    head.advance();
     let condition: Expression = *parse_expression(head)?;
 
     match head.curr.ttype {
         TokenType::LeftBrace => {
-            utils::advance(head);
+            head.advance();
             Ok(ScopeBoundStatement::While {
                 condition,
                 body: Some(parse_scope_block(head)?),
             })
         }
         TokenType::Semicolon => {
-            utils::advance(head);
+            head.advance();
             Ok(ScopeBoundStatement::While {
                 condition,
                 body: None,
             })
         }
         _ => Err(ParseError::LoopBodyNotFound {
-            body: Arc::clone(head.curr),
+            body: std::mem::take(&mut head.curr),
         }),
     }
 }
 
 pub fn parse_conditional(head: &mut ParserHead) -> Result<ScopeBoundStatement, ParseError> {
-    utils::advance(head);
+    head.advance();
     let condition: Expression = *or_expression(head)?;
     let true_branch: Vec<ScopeBoundStatement> = parse_conditional_branch(head)?;
 
     match head.curr.ttype {
         TokenType::Else => {
-            utils::advance(head);
+            head.advance();
 
             Ok(ScopeBoundStatement::Conditional {
                 condition,
@@ -300,8 +298,8 @@ pub fn parse_conditional(head: &mut ParserHead) -> Result<ScopeBoundStatement, P
 }
 
 fn parse_conditional_branch(head: &mut ParserHead) -> Result<Vec<ScopeBoundStatement>, ParseError> {
-    utils::require_token_type(head.curr, TokenType::LeftBrace)?;
-    utils::advance(head);
+    head.require_current_is(TokenType::LeftBrace)?;
+    head.advance();
 
     parse_scope_block(head)
 }
@@ -311,7 +309,7 @@ fn parse_assignable_stmt(head: &mut ParserHead) -> Result<ScopeBoundStatement, P
         TokenType::If => parse_conditional(head),
         TokenType::Match => parse_match(head),
         TokenType::LeftBrace => {
-            utils::advance(head);
+            head.advance();
             Ok(ScopeBoundStatement::Scope(parse_scope_block(head)?))
         }
         TokenType::While
@@ -321,7 +319,7 @@ fn parse_assignable_stmt(head: &mut ParserHead) -> Result<ScopeBoundStatement, P
         | TokenType::Let
         | TokenType::Break
         | TokenType::Continue => Err(ParseError::InvalidVariableAssignment {
-            value: Arc::clone(head.curr),
+            value: std::mem::take(&mut head.curr),
         }),
         _ => Ok(ScopeBoundStatement::Expression(
             *expression_parser::parse_expression(head)?,
@@ -333,19 +331,19 @@ pub fn parse_variable_declaration(
     head: &mut ParserHead,
 ) -> Result<ScopeBoundStatement, ParseError> {
     // let -> var_name
-    utils::advance(head);
+    head.advance();
 
-    let variable_name = Arc::clone(head.curr);
-    utils::advance(head);
+    let variable_name = std::mem::take(&mut head.curr);
+    head.advance();
 
     let variable: ScopeBoundStatement = match head.curr.ttype {
         TokenType::Colon => {
-            utils::advance(head);
+            head.advance();
             let datatype = utils::parse_datatype(head)?;
 
-            match utils::require_token_type(head.curr, TokenType::Equal) {
+            match head.require_current_is(TokenType::Equal) {
                 Ok(_) => {
-                    utils::advance(head);
+                    head.advance();
 
                     ScopeBoundStatement::VariableDeclaration(Variable::new(
                         variable_name,
@@ -355,14 +353,13 @@ pub fn parse_variable_declaration(
                 }
                 Err(_) => {
                     return Err(ParseError::InvalidVariableDeclaration {
-                        line: head.curr.line,
-                        column: head.curr.column,
+                        token: std::mem::take(&mut head.curr),
                     })
                 }
             }
         }
         TokenType::DynamicDefinition => {
-            utils::advance(head);
+            head.advance();
             ScopeBoundStatement::VariableDeclaration(Variable::new(
                 variable_name,
                 None,
@@ -371,14 +368,13 @@ pub fn parse_variable_declaration(
         }
         _ => {
             return Err(ParseError::InvalidVariableDeclaration {
-                line: head.curr.line,
-                column: head.curr.column,
+                token: std::mem::take(&mut head.curr),
             })
         }
     };
 
-    utils::require_token_type(head.curr, TokenType::Semicolon)?;
-    utils::advance(head);
+    head.require_current_is(TokenType::Semicolon)?;
+    head.advance();
 
     Ok(variable)
 }

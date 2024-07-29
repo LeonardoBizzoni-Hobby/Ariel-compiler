@@ -5,19 +5,17 @@ use crate::{
     tokens::token::Token,
 };
 
-use std::sync::Arc;
-
 #[derive(Debug)]
 pub struct Function {
     _is_main: bool,
-    pub name: Arc<Token>,
+    pub name: Box<Token>,
     pub args: Vec<Argument>,
     ret_type: Option<DataType>,
     body: Option<Vec<ScopeBoundStatement>>,
 }
 
 impl Function {
-    pub fn make_main(token: Arc<Token>) -> Self {
+    pub fn make_main(token: Box<Token>) -> Self {
         Self {
             _is_main: true,
             name: token,
@@ -27,7 +25,7 @@ impl Function {
         }
     }
 
-    pub fn make_func(token: Arc<Token>) -> Self {
+    pub fn make_func(token: Box<Token>) -> Self {
         Self {
             _is_main: false,
             name: token,

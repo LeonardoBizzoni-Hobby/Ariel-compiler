@@ -1,6 +1,6 @@
 use super::{source::SourceFile, token::Token, token_type::TokenType};
 use lazy_static::lazy_static;
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 lazy_static! {
     static ref KEYWORD: HashMap<String, TokenType> = {
@@ -44,7 +44,7 @@ lazy_static! {
     };
 }
 
-pub fn get_token(source: &mut SourceFile) -> Arc<Token> {
+pub fn get_token(source: &mut SourceFile) -> Box<Token> {
     skip_whitespace(source);
 
     source.start = source.current;
@@ -203,14 +203,14 @@ pub fn get_token(source: &mut SourceFile) -> Arc<Token> {
     }
 }
 
-fn make_token(ttype: TokenType, source: &mut SourceFile) -> Arc<Token> {
+fn make_token(ttype: TokenType, source: &mut SourceFile) -> Box<Token> {
     let start: usize = source.start;
     let current: usize = source.current;
 
     let binding: Vec<u8> = source.mmap[start..current].to_vec();
     let lexeme: String = String::from_utf8_lossy(&binding).to_string();
 
-    Arc::new(Token::new(
+    Box::new(Token::new(
         source.line,
         source.column - lexeme.len(),
         ttype,
@@ -219,7 +219,7 @@ fn make_token(ttype: TokenType, source: &mut SourceFile) -> Arc<Token> {
     ))
 }
 
-fn make_number_token(source: &mut SourceFile) -> Arc<Token> {
+fn make_number_token(source: &mut SourceFile) -> Box<Token> {
     while source.peek().is_ascii_digit() {
         advance(source);
     }
@@ -237,7 +237,7 @@ fn make_number_token(source: &mut SourceFile) -> Arc<Token> {
     }
 }
 
-fn make_string_token(source: &mut SourceFile) -> Arc<Token> {
+fn make_string_token(source: &mut SourceFile) -> Box<Token> {
     let mut lexeme: String = String::new();
     while source.peek() != b'"' {
         match source.peek() {
@@ -291,7 +291,7 @@ fn make_string_token(source: &mut SourceFile) -> Arc<Token> {
     }
 }
 
-fn make_identifier_token(source: &mut SourceFile) -> Arc<Token> {
+fn make_identifier_token(source: &mut SourceFile) -> Box<Token> {
     while source.peek().is_ascii_alphanumeric() || source.peek() == b'_' {
         advance(source);
     }
@@ -306,8 +306,8 @@ fn make_identifier_token(source: &mut SourceFile) -> Arc<Token> {
     }
 }
 
-fn make_token_from(ttype: TokenType, lexeme: &str, source: &mut SourceFile) -> Arc<Token> {
-    Arc::new(Token::new(
+fn make_token_from(ttype: TokenType, lexeme: &str, source: &mut SourceFile) -> Box<Token> {
+    Box::new(Token::new(
         source.line,
         {
             match ttype {
@@ -376,16 +376,16 @@ fn advance(source: &mut SourceFile) -> u8 {
 #[allow(unused_imports)]
 #[allow(dead_code)]
 mod tests {
-    use crate::test_util::{create_test_file, delete_test_file};
     use super::*;
+    use crate::test_util::{create_test_file, delete_test_file};
     use std::{fs::File, io::Write};
 
-    fn scan_file(path: &str) -> Vec<Arc<Token>> {
-        let mut scanned: Vec<Arc<Token>> = vec![];
+    fn scan_file(path: &str) -> Vec<Box<Token>> {
+        let mut scanned: Vec<Box<Token>> = vec![];
         let mut source = SourceFile::new(path).unwrap();
         loop {
             let tk = get_token(&mut source);
-            scanned.push(Arc::clone(&tk));
+            scanned.push(Box::clone(&tk));
 
             if tk.ttype == TokenType::Eof {
                 break;
@@ -395,7 +395,7 @@ mod tests {
         return scanned;
     }
 
-    fn test_tokentype_equality(expected: Vec<TokenType>, found: Vec<Arc<Token>>) {
+    fn test_tokentype_equality(expected: Vec<TokenType>, found: Vec<Box<Token>>) {
         assert_eq!(
             expected,
             found
@@ -409,44 +409,44 @@ mod tests {
     fn single_file_tokenization() {
         create_test_file("single.file", "a b c d e");
 
-        let scanned: Vec<Arc<Token>> = scan_file("single.file");
+        let scanned: Vec<Box<Token>> = scan_file("single.file");
         let expected = vec![
-            Arc::new(Token::new(
+            Box::new(Token::new(
                 1,
                 0,
                 TokenType::Identifier,
                 String::from("a"),
                 "single.file".to_string(),
             )),
-            Arc::new(Token::new(
+            Box::new(Token::new(
                 1,
                 2,
                 TokenType::Identifier,
                 String::from("b"),
                 "single.file".to_string(),
             )),
-            Arc::new(Token::new(
+            Box::new(Token::new(
                 1,
                 4,
                 TokenType::Identifier,
                 String::from("c"),
                 "single.file".to_string(),
             )),
-            Arc::new(Token::new(
+            Box::new(Token::new(
                 1,
                 6,
                 TokenType::Identifier,
                 String::from("d"),
                 "single.file".to_string(),
             )),
-            Arc::new(Token::new(
+            Box::new(Token::new(
                 1,
                 8,
                 TokenType::Identifier,
                 String::from("e"),
                 "single.file".to_string(),
             )),
-            Arc::new(Token::new(
+            Box::new(Token::new(
                 1,
                 9,
                 TokenType::Eof,
@@ -467,7 +467,7 @@ mod tests {
     fn keyword_tokenization_test() {
         create_test_file("keyword.test", "_ break continue else enum false fn for if import let loop main match nil return struct true void while u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 str");
 
-        let scanned: Vec<Arc<Token>> = scan_file("keyword.test");
+        let scanned: Vec<Box<Token>> = scan_file("keyword.test");
         let expected_types = vec![
             TokenType::DontCare,
             TokenType::Break,
@@ -511,7 +511,7 @@ mod tests {
     fn symbol_tokenization_test() {
         create_test_file("symbol.test", "([{}]) . .. ..=, -> : := :: ?%! != = == > >= >> >>= < <= << <<= && & | || - -= + += / /=  // //= * *= ^ ^=");
 
-        let scanned: Vec<Arc<Token>> = scan_file("symbol.test");
+        let scanned: Vec<Box<Token>> = scan_file("symbol.test");
         let expected_types = vec![
             TokenType::LeftParen,
             TokenType::LeftSquare,
