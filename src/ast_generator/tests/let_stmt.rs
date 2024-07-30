@@ -10,8 +10,13 @@ fn let_without_value() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidVariableDeclaration {
-            line: 1,
-            column: 10
+            token: Box::new(Token {
+                line: 1,
+                column: 10,
+                ttype: TokenType::Semicolon,
+                lexeme: ";".to_string(),
+                found_in: "let_without_value".to_string()
+            })
         },
         found.err().unwrap()
     );
@@ -24,7 +29,7 @@ fn let_builtin_type() {
     assert!(found.is_ok());
     assert_eq!(
         ScopeBoundStatement::VariableDeclaration(Variable::new(
-            Arc::new(Token {
+            Box::new(Token {
                 line: 1,
                 column: 4,
                 ttype: TokenType::DontCare,
@@ -33,7 +38,7 @@ fn let_builtin_type() {
             }),
             Some(crate::ast_generator::ast::variables::DataType::U8),
             Box::new(ScopeBoundStatement::Expression(Expression::Literal {
-                literal: Arc::new(Token {
+                literal: Box::new(Token {
                     line: 1,
                     column: 13,
                     ttype: TokenType::Integer,
@@ -53,7 +58,7 @@ fn let_custom_type() {
     assert!(found.is_ok());
     assert_eq!(
         ScopeBoundStatement::VariableDeclaration(Variable::new(
-            Arc::new(Token {
+            Box::new(Token {
                 line: 1,
                 column: 4,
                 ttype: TokenType::DontCare,
@@ -61,7 +66,7 @@ fn let_custom_type() {
                 found_in: "let_custom_type".to_owned()
             }),
             Some(DataType::Compound {
-                name: Arc::new(Token {
+                name: Box::new(Token {
                     line: 1,
                     column: 8,
                     ttype: TokenType::Identifier,
@@ -70,7 +75,7 @@ fn let_custom_type() {
                 })
             }),
             Box::new(ScopeBoundStatement::Expression(Expression::Literal {
-                literal: Arc::new(Token {
+                literal: Box::new(Token {
                     line: 1,
                     column: 16,
                     ttype: TokenType::Integer,
@@ -90,9 +95,13 @@ fn let_invalid_type() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidDataType {
-            line: 1,
-            col: 8,
-            found: TokenType::Integer,
+            token: Box::new(Token {
+                line: 1,
+                column: 8,
+                ttype: TokenType::Integer,
+                lexeme: "8".to_string(),
+                found_in: "let_invalid_type".to_string()
+            }),
             msg: None
         },
         found.err().unwrap()
@@ -106,7 +115,7 @@ fn let_while_value() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidVariableAssignment {
-            value: Arc::new(Token {
+            value: Box::new(Token {
                 line: 1,
                 column: 16,
                 ttype: TokenType::While,
@@ -125,7 +134,7 @@ fn let_loop_value() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidVariableAssignment {
-            value: Arc::new(Token {
+            value: Box::new(Token {
                 line: 1,
                 column: 16,
                 ttype: TokenType::Loop,
@@ -147,7 +156,7 @@ fn let_for_value() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidVariableAssignment {
-            value: Arc::new(Token {
+            value: Box::new(Token {
                 line: 1,
                 column: 16,
                 ttype: TokenType::For,
@@ -166,7 +175,7 @@ fn let_return_value() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidVariableAssignment {
-            value: Arc::new(Token {
+            value: Box::new(Token {
                 line: 1,
                 column: 16,
                 ttype: TokenType::Return,
@@ -185,7 +194,7 @@ fn let_let_value() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidVariableAssignment {
-            value: Arc::new(Token {
+            value: Box::new(Token {
                 line: 1,
                 column: 16,
                 ttype: TokenType::Let,
@@ -204,7 +213,7 @@ fn let_break_value() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidVariableAssignment {
-            value: Arc::new(Token {
+            value: Box::new(Token {
                 line: 1,
                 column: 16,
                 ttype: TokenType::Break,
@@ -223,7 +232,7 @@ fn let_continue_value() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidVariableAssignment {
-            value: Arc::new(Token {
+            value: Box::new(Token {
                 line: 1,
                 column: 16,
                 ttype: TokenType::Continue,
@@ -242,7 +251,7 @@ fn let_if_value() {
     assert!(found.is_ok());
     assert_eq!(
         ScopeBoundStatement::VariableDeclaration(Variable::new(
-            Arc::new(Token {
+            Box::new(Token {
                 line: 1,
                 column: 4,
                 ttype: TokenType::Identifier,
@@ -252,7 +261,7 @@ fn let_if_value() {
             Some(DataType::Isize),
             Box::new(ScopeBoundStatement::Conditional {
                 condition: Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 22,
                         ttype: TokenType::True,
@@ -275,7 +284,7 @@ fn let_match_value() {
     assert!(found.is_ok());
     assert_eq!(
         ScopeBoundStatement::VariableDeclaration(Variable::new(
-            Arc::new(Token {
+            Box::new(Token {
                 line: 1,
                 column: 4,
                 ttype: TokenType::Identifier,
@@ -285,7 +294,7 @@ fn let_match_value() {
             Some(DataType::Isize),
             Box::new(ScopeBoundStatement::Match {
                 on: Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 25,
                         ttype: TokenType::Integer,
@@ -307,7 +316,7 @@ fn let_scope_value() {
     assert!(found.is_ok());
     assert_eq!(
         ScopeBoundStatement::VariableDeclaration(Variable::new(
-            Arc::new(Token {
+            Box::new(Token {
                 line: 1,
                 column: 4,
                 ttype: TokenType::Identifier,
@@ -328,7 +337,7 @@ fn let_expr_value() {
     assert!(found.is_ok());
     assert_eq!(
         ScopeBoundStatement::VariableDeclaration(Variable::new(
-            Arc::new(Token {
+            Box::new(Token {
                 line: 1,
                 column: 4,
                 ttype: TokenType::Identifier,
@@ -338,7 +347,7 @@ fn let_expr_value() {
             Some(DataType::Isize),
             Box::new(ScopeBoundStatement::Expression(Expression::Binary {
                 left: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 19,
                         ttype: TokenType::Integer,
@@ -346,7 +355,7 @@ fn let_expr_value() {
                         found_in: "let_expr_value".to_owned()
                     })
                 }),
-                operation: Arc::new(Token {
+                operation: Box::new(Token {
                     line: 1,
                     column: 22,
                     ttype: TokenType::Plus,
@@ -354,7 +363,7 @@ fn let_expr_value() {
                     found_in: "let_expr_value".to_owned()
                 }),
                 right: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 24,
                         ttype: TokenType::Integer,

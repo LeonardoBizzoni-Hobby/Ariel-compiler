@@ -8,7 +8,7 @@ fn while_no_condition() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidExpression {
-            token: Arc::new(Token {
+            token: Box::new(Token {
                 line: 1,
                 column: 6,
                 ttype: TokenType::LeftBrace,
@@ -27,7 +27,7 @@ fn while_no_condition_body() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidExpression {
-            token: Arc::new(Token {
+            token: Box::new(Token {
                 line: 1,
                 column: 5,
                 ttype: TokenType::Semicolon,
@@ -47,7 +47,7 @@ fn valid_while_no_body() {
     assert_eq!(
         ScopeBoundStatement::While {
             condition: Expression::Literal {
-                literal: Arc::new(Token {
+                literal: Box::new(Token {
                     line: 1,
                     column: 6,
                     ttype: TokenType::True,
@@ -69,7 +69,7 @@ fn valid_while() {
     assert_eq!(
         ScopeBoundStatement::While {
             condition: Expression::Literal {
-                literal: Arc::new(Token {
+                literal: Box::new(Token {
                     line: 1,
                     column: 6,
                     ttype: TokenType::Nil,
@@ -79,7 +79,7 @@ fn valid_while() {
             },
             body: Some(vec![ScopeBoundStatement::Expression(Expression::Binary {
                 left: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 12,
                         ttype: TokenType::Integer,
@@ -87,7 +87,7 @@ fn valid_while() {
                         found_in: "valid_while".to_owned()
                     })
                 }),
-                operation: Arc::new(Token {
+                operation: Box::new(Token {
                     line: 1,
                     column: 15,
                     ttype: TokenType::Plus,
@@ -95,7 +95,7 @@ fn valid_while() {
                     found_in: "valid_while".to_owned()
                 }),
                 right: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 17,
                         ttype: TokenType::Integer,
@@ -150,7 +150,7 @@ fn for_with_init() {
         ScopeBoundStatement::For {
             initialization: Some(Box::new(ScopeBoundStatement::VariableDeclaration(
                 Variable::new(
-                    Arc::new(Token {
+                    Box::new(Token {
                         line: 1,
                         column: 9,
                         ttype: TokenType::Identifier,
@@ -159,7 +159,7 @@ fn for_with_init() {
                     }),
                     None,
                     Box::new(ScopeBoundStatement::Expression(Expression::Literal {
-                        literal: Arc::new(Token {
+                        literal: Box::new(Token {
                             line: 1,
                             column: 14,
                             ttype: TokenType::Integer,
@@ -193,7 +193,7 @@ fn for_with_condition() {
         ScopeBoundStatement::For {
             initialization: None,
             condition: Some(Expression::Literal {
-                literal: Arc::new(Token {
+                literal: Box::new(Token {
                     line: 1,
                     column: 7,
                     ttype: TokenType::True,
@@ -218,7 +218,7 @@ fn for_with_invalid_condition() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidExpression {
-            token: Arc::new(Token {
+            token: Box::new(Token {
                 line: 1,
                 column: 7,
                 ttype: TokenType::If,
@@ -241,7 +241,7 @@ fn for_with_increment() {
             condition: None,
             increment: Some(Expression::Binary {
                 left: Box::new(Expression::Name {
-                    name: Arc::new(Token {
+                    name: Box::new(Token {
                         line: 1,
                         column: 9,
                         ttype: TokenType::Identifier,
@@ -249,7 +249,7 @@ fn for_with_increment() {
                         found_in: "for_with_increment".to_owned()
                     })
                 }),
-                operation: Arc::new(Token {
+                operation: Box::new(Token {
                     line: 1,
                     column: 11,
                     ttype: TokenType::PlusEquals,
@@ -257,7 +257,7 @@ fn for_with_increment() {
                     found_in: "for_with_increment".to_owned()
                 }),
                 right: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 14,
                         ttype: TokenType::Integer,
@@ -282,7 +282,7 @@ fn for_with_invalid_increment() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidExpression {
-            token: Arc::new(Token {
+            token: Box::new(Token {
                 line: 1,
                 column: 9,
                 ttype: TokenType::If,
@@ -303,7 +303,7 @@ fn full_for() {
         ScopeBoundStatement::For {
             initialization: Some(Box::new(ScopeBoundStatement::VariableDeclaration(
                 Variable::new(
-                    Arc::new(Token {
+                    Box::new(Token {
                         line: 1,
                         column: 9,
                         ttype: TokenType::Identifier,
@@ -312,7 +312,7 @@ fn full_for() {
                     }),
                     None,
                     Box::new(ScopeBoundStatement::Expression(Expression::Literal {
-                        literal: Arc::new(Token {
+                        literal: Box::new(Token {
                             line: 1,
                             column: 13,
                             ttype: TokenType::Integer,
@@ -323,7 +323,7 @@ fn full_for() {
                 )
             ))),
             condition: Some(Expression::Literal {
-                literal: Arc::new(Token {
+                literal: Box::new(Token {
                     line: 1,
                     column: 16,
                     ttype: TokenType::True,
@@ -333,7 +333,7 @@ fn full_for() {
             }),
             increment: Some(Expression::Binary {
                 left: Box::new(Expression::Name {
-                    name: Arc::new(Token {
+                    name: Box::new(Token {
                         line: 1,
                         column: 22,
                         ttype: TokenType::Identifier,
@@ -341,7 +341,7 @@ fn full_for() {
                         found_in: "full_for".to_owned()
                     })
                 }),
-                operation: Arc::new(Token {
+                operation: Box::new(Token {
                     line: 1,
                     column: 24,
                     ttype: TokenType::PlusEquals,
@@ -349,7 +349,7 @@ fn full_for() {
                     found_in: "full_for".to_owned()
                 }),
                 right: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 27,
                         ttype: TokenType::Integer,

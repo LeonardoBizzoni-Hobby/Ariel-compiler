@@ -7,7 +7,7 @@ fn defer_without_stmt() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidExpression {
-            token: Arc::new(Token {
+            token: Box::new(Token {
                 line: 1,
                 column: 5,
                 ttype: TokenType::Semicolon,
@@ -39,7 +39,7 @@ fn defer_stmt() {
         ScopeBoundStatement::Defer(Box::new(ScopeBoundStatement::Expression(
             Expression::Binary {
                 left: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 6,
                         ttype: TokenType::Integer,
@@ -47,7 +47,7 @@ fn defer_stmt() {
                         found_in: "defer_stmt".to_owned()
                     })
                 }),
-                operation: Arc::new(Token {
+                operation: Box::new(Token {
                     line: 1,
                     column: 8,
                     ttype: TokenType::Plus,
@@ -55,7 +55,7 @@ fn defer_stmt() {
                     found_in: "defer_stmt".to_owned()
                 }),
                 right: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 10,
                         ttype: TokenType::Integer,
@@ -86,7 +86,7 @@ fn return_expr() {
         ScopeBoundStatement::Return(Some(Box::new(ScopeBoundStatement::Expression(
             Expression::Binary {
                 left: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 7,
                         ttype: TokenType::Integer,
@@ -94,7 +94,7 @@ fn return_expr() {
                         found_in: "return_expr".to_owned()
                     })
                 }),
-                operation: Arc::new(Token {
+                operation: Box::new(Token {
                     line: 1,
                     column: 9,
                     ttype: TokenType::Plus,
@@ -102,7 +102,7 @@ fn return_expr() {
                     found_in: "return_expr".to_owned()
                 }),
                 right: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 11,
                         ttype: TokenType::Integer,
@@ -124,7 +124,7 @@ fn return_stmt() {
     assert_eq!(
         ScopeBoundStatement::Return(Some(Box::new(ScopeBoundStatement::Conditional {
             condition: Expression::Literal {
-                literal: Arc::new(Token {
+                literal: Box::new(Token {
                     line: 1,
                     column: 10,
                     ttype: TokenType::Nil,
@@ -133,7 +133,7 @@ fn return_stmt() {
                 })
             },
             true_branch: vec![ScopeBoundStatement::ImplicitReturn(Expression::Literal {
-                literal: Arc::new(Token {
+                literal: Box::new(Token {
                     line: 1,
                     column: 16,
                     ttype: TokenType::Integer,
@@ -154,9 +154,13 @@ fn return_stmt_no_semicolon() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::UnexpectedToken {
-            line: 1,
-            col: 20,
-            found: TokenType::Eof,
+            token: Box::new(Token {
+                line: 1,
+                column: 20,
+                ttype: TokenType::Eof,
+                lexeme: "".to_owned(),
+                found_in: "return_stmt_no_semicolon".to_owned()
+            }),
             expected: TokenType::Semicolon,
             msg: None
         },
@@ -171,9 +175,13 @@ fn return_expr_no_semicolon() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::UnexpectedToken {
-            line: 1,
-            col: 12,
-            found: TokenType::Eof,
+            token: Box::new(Token {
+                line: 1,
+                column: 12,
+                ttype: TokenType::Eof,
+                lexeme: "".to_owned(),
+                found_in: "return_expr_no_semicolon".to_owned()
+            }),
             expected: TokenType::Semicolon,
             msg: None
         },
@@ -188,15 +196,11 @@ fn invalid_continue() {
 
     match found.err().unwrap() {
         ParseError::UnexpectedToken {
-            line,
-            col,
-            found,
-            expected,
-            ..
+            token, expected, ..
         } => {
-            assert_eq!(1, line);
-            assert_eq!(8, col);
-            assert_eq!(TokenType::Eof, found);
+            assert_eq!(1, token.line);
+            assert_eq!(8, token.column);
+            assert_eq!(TokenType::Eof, token.ttype);
             assert_eq!(TokenType::Semicolon, expected);
         }
         _ => panic!(),
@@ -221,9 +225,13 @@ fn invalid_break() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::UnexpectedToken {
-            line: 1,
-            col: 5,
-            found: TokenType::Eof,
+            token: Box::new(Token {
+                line: 1,
+                column: 5,
+                ttype: TokenType::Eof,
+                lexeme: "".to_owned(),
+                found_in: "invalid_break".to_owned()
+            }),
             expected: TokenType::Semicolon,
             msg: None
         },

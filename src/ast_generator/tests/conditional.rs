@@ -10,7 +10,7 @@ fn missing_condition() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidExpression {
-            token: Arc::new(Token {
+            token: Box::new(Token {
                 line: 1,
                 column: 3,
                 ttype: TokenType::LeftBrace,
@@ -30,9 +30,13 @@ fn missing_scope() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::UnexpectedToken {
-            line: 1,
-            col: 8,
-            found: TokenType::Return,
+            token: Box::new(Token {
+                line: 1,
+                column: 8,
+                ttype: TokenType::Return,
+                lexeme: "return".to_string(),
+                found_in: "missing_scope".to_string()
+            }),
             expected: TokenType::LeftBrace,
             msg: None
         },
@@ -48,9 +52,13 @@ fn missing_false_branch() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::UnexpectedToken {
-            line: 1,
-            col: 27,
-            found: TokenType::Eof,
+            token: Box::new(Token {
+                line: 1,
+                column: 27,
+                ttype: TokenType::Eof,
+                lexeme: String::new(),
+                found_in: "missing_false_branch".to_string()
+            }),
             expected: TokenType::LeftBrace,
             msg: None
         },
@@ -66,7 +74,7 @@ fn empty_true_branch() {
     assert_eq!(
         ScopeBoundStatement::Conditional {
             condition: Expression::Literal {
-                literal: Arc::new(Token {
+                literal: Box::new(Token {
                     line: 1,
                     column: 3,
                     ttype: TokenType::True,
@@ -90,7 +98,7 @@ fn empty_branches() {
     assert_eq!(
         ScopeBoundStatement::Conditional {
             condition: Expression::Literal {
-                literal: Arc::new(Token {
+                literal: Box::new(Token {
                     line: 1,
                     column: 3,
                     ttype: TokenType::True,
@@ -115,7 +123,7 @@ fn else_with_conditional_missing_condition() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::InvalidExpression {
-            token: Arc::new(Token {
+            token: Box::new(Token {
                 line: 1,
                 column: 19,
                 ttype: TokenType::LeftBrace,
@@ -136,7 +144,7 @@ fn else_with_conditional() {
     assert_eq!(
         ScopeBoundStatement::Conditional {
             condition: Expression::Literal {
-                literal: Arc::new(Token {
+                literal: Box::new(Token {
                     line: 1,
                     column: 3,
                     ttype: TokenType::True,
@@ -147,7 +155,7 @@ fn else_with_conditional() {
             true_branch: vec![],
             false_branch: Some(vec![ScopeBoundStatement::Conditional {
                 condition: Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 19,
                         ttype: TokenType::Nil,
@@ -175,7 +183,7 @@ fn valid_if_stmt() {
         ScopeBoundStatement::Conditional {
             condition: Expression::Binary {
                 left: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 3,
                         ttype: TokenType::Integer,
@@ -183,7 +191,7 @@ fn valid_if_stmt() {
                         found_in: "valid_if".to_owned(),
                     }),
                 }),
-                operation: Arc::new(Token {
+                operation: Box::new(Token {
                     line: 1,
                     column: 6,
                     ttype: TokenType::EqualEqual,
@@ -191,7 +199,7 @@ fn valid_if_stmt() {
                     found_in: "valid_if".to_owned(),
                 }),
                 right: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 9,
                         ttype: TokenType::Integer,
@@ -202,7 +210,7 @@ fn valid_if_stmt() {
             },
             true_branch: vec![ScopeBoundStatement::Return(Some(Box::new(
                 ScopeBoundStatement::Expression(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 21,
                         ttype: TokenType::Integer,
@@ -213,7 +221,7 @@ fn valid_if_stmt() {
             )))],
             false_branch: Some(vec![ScopeBoundStatement::Return(Some(Box::new(
                 ScopeBoundStatement::Expression(Expression::Unary {
-                    operation: Arc::new(Token {
+                    operation: Box::new(Token {
                         line: 1,
                         column: 41,
                         ttype: TokenType::Minus,
@@ -221,7 +229,7 @@ fn valid_if_stmt() {
                         found_in: "valid_if".to_owned()
                     }),
                     value: Box::new(Expression::Literal {
-                        literal: Arc::new(Token {
+                        literal: Box::new(Token {
                             line: 1,
                             column: 42,
                             ttype: TokenType::Integer,
@@ -249,7 +257,7 @@ fn valid_if_nested_condition() {
             condition: Expression::Nested {
                 nested: Box::new(Expression::Binary {
                     left: Box::new(Expression::Literal {
-                        literal: Arc::new(Token {
+                        literal: Box::new(Token {
                             line: 1,
                             column: 4,
                             ttype: TokenType::Integer,
@@ -257,7 +265,7 @@ fn valid_if_nested_condition() {
                             found_in: "valid_if_grouping".to_owned(),
                         }),
                     }),
-                    operation: Arc::new(Token {
+                    operation: Box::new(Token {
                         line: 1,
                         column: 7,
                         ttype: TokenType::EqualEqual,
@@ -265,7 +273,7 @@ fn valid_if_nested_condition() {
                         found_in: "valid_if_grouping".to_owned(),
                     }),
                     right: Box::new(Expression::Literal {
-                        literal: Arc::new(Token {
+                        literal: Box::new(Token {
                             line: 1,
                             column: 10,
                             ttype: TokenType::Integer,
@@ -277,7 +285,7 @@ fn valid_if_nested_condition() {
             },
             true_branch: vec![ScopeBoundStatement::Return(Some(Box::new(
                 ScopeBoundStatement::Expression(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 23,
                         ttype: TokenType::Integer,
@@ -288,7 +296,7 @@ fn valid_if_nested_condition() {
             )))],
             false_branch: Some(vec![ScopeBoundStatement::Return(Some(Box::new(
                 ScopeBoundStatement::Expression(Expression::Unary {
-                    operation: Arc::new(Token {
+                    operation: Box::new(Token {
                         line: 1,
                         column: 43,
                         ttype: TokenType::Minus,
@@ -296,7 +304,7 @@ fn valid_if_nested_condition() {
                         found_in: "valid_if_grouping".to_owned()
                     }),
                     value: Box::new(Expression::Literal {
-                        literal: Arc::new(Token {
+                        literal: Box::new(Token {
                             line: 1,
                             column: 44,
                             ttype: TokenType::Integer,
@@ -323,7 +331,7 @@ fn valid_match() {
         ScopeBoundStatement::Match {
             on: Expression::Binary {
                 left: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 6,
                         ttype: TokenType::Integer,
@@ -331,7 +339,7 @@ fn valid_match() {
                         found_in: "valid_match".to_owned()
                     })
                 }),
-                operation: Arc::new(Token {
+                operation: Box::new(Token {
                     line: 1,
                     column: 9,
                     ttype: TokenType::NotEqual,
@@ -339,7 +347,7 @@ fn valid_match() {
                     found_in: "valid_match".to_owned()
                 }),
                 right: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 12,
                         ttype: TokenType::Integer,
@@ -351,7 +359,7 @@ fn valid_match() {
             cases: HashMap::from([
                 (
                     Expression::Literal {
-                        literal: Arc::new(Token {
+                        literal: Box::new(Token {
                             line: 1,
                             column: 17,
                             ttype: TokenType::True,
@@ -360,7 +368,7 @@ fn valid_match() {
                         })
                     },
                     vec![ScopeBoundStatement::ImplicitReturn(Expression::Literal {
-                        literal: Arc::new(Token {
+                        literal: Box::new(Token {
                             line: 1,
                             column: 27,
                             ttype: TokenType::Integer,
@@ -371,7 +379,7 @@ fn valid_match() {
                 ),
                 (
                     Expression::Literal {
-                        literal: Arc::new(Token {
+                        literal: Box::new(Token {
                             line: 1,
                             column: 33,
                             ttype: TokenType::False,
@@ -380,7 +388,7 @@ fn valid_match() {
                         })
                     },
                     vec![ScopeBoundStatement::ImplicitReturn(Expression::Unary {
-                        operation: Arc::new(Token {
+                        operation: Box::new(Token {
                             line: 1,
                             column: 44,
                             ttype: TokenType::Minus,
@@ -388,7 +396,7 @@ fn valid_match() {
                             found_in: "valid_match".to_owned()
                         }),
                         value: Box::new(Expression::Literal {
-                            literal: Arc::new(Token {
+                            literal: Box::new(Token {
                                 line: 1,
                                 column: 45,
                                 ttype: TokenType::Integer,
@@ -417,7 +425,7 @@ fn valid_match_nested_condition() {
             on: Expression::Nested {
                 nested: Box::new(Expression::Binary {
                     left: Box::new(Expression::Literal {
-                        literal: Arc::new(Token {
+                        literal: Box::new(Token {
                             line: 1,
                             column: 7,
                             ttype: TokenType::Integer,
@@ -425,7 +433,7 @@ fn valid_match_nested_condition() {
                             found_in: "valid_match_nested_condition".to_owned()
                         })
                     }),
-                    operation: Arc::new(Token {
+                    operation: Box::new(Token {
                         line: 1,
                         column: 10,
                         ttype: TokenType::NotEqual,
@@ -433,7 +441,7 @@ fn valid_match_nested_condition() {
                         found_in: "valid_match_nested_condition".to_owned()
                     }),
                     right: Box::new(Expression::Literal {
-                        literal: Arc::new(Token {
+                        literal: Box::new(Token {
                             line: 1,
                             column: 13,
                             ttype: TokenType::Integer,
@@ -446,7 +454,7 @@ fn valid_match_nested_condition() {
             cases: HashMap::from([
                 (
                     Expression::Literal {
-                        literal: Arc::new(Token {
+                        literal: Box::new(Token {
                             line: 1,
                             column: 19,
                             ttype: TokenType::True,
@@ -455,7 +463,7 @@ fn valid_match_nested_condition() {
                         })
                     },
                     vec![ScopeBoundStatement::ImplicitReturn(Expression::Literal {
-                        literal: Arc::new(Token {
+                        literal: Box::new(Token {
                             line: 1,
                             column: 29,
                             ttype: TokenType::Integer,
@@ -466,7 +474,7 @@ fn valid_match_nested_condition() {
                 ),
                 (
                     Expression::Literal {
-                        literal: Arc::new(Token {
+                        literal: Box::new(Token {
                             line: 1,
                             column: 35,
                             ttype: TokenType::False,
@@ -475,7 +483,7 @@ fn valid_match_nested_condition() {
                         })
                     },
                     vec![ScopeBoundStatement::ImplicitReturn(Expression::Unary {
-                        operation: Arc::new(Token {
+                        operation: Box::new(Token {
                             line: 1,
                             column: 46,
                             ttype: TokenType::Minus,
@@ -483,7 +491,7 @@ fn valid_match_nested_condition() {
                             found_in: "valid_match_nested_condition".to_owned()
                         }),
                         value: Box::new(Expression::Literal {
-                            literal: Arc::new(Token {
+                            literal: Box::new(Token {
                                 line: 1,
                                 column: 47,
                                 ttype: TokenType::Integer,
@@ -509,9 +517,13 @@ fn match_without_arrow() {
     assert!(found.is_err());
     assert_eq!(
         ParseError::UnexpectedToken {
-            line: 1,
-            col: 22,
-            found: TokenType::LeftBrace,
+            token: Box::new(Token {
+                line: 1,
+                column: 22,
+                ttype: TokenType::LeftBrace,
+                lexeme: "{".to_owned(),
+                found_in: "valid_match_nested_condition".to_owned()
+            }),
             expected: TokenType::Arrow,
             msg: None,
         },

@@ -7,15 +7,11 @@ fn scope_not_closed() {
 
     match found.err().unwrap() {
         ParseError::UnexpectedToken {
-            line,
-            col,
-            found,
-            expected,
-            ..
+            token, expected, ..
         } => {
-            assert_eq!(1, line);
-            assert_eq!(8, col);
-            assert_eq!(TokenType::Eof, found);
+            assert_eq!(1, token.line);
+            assert_eq!(8, token.column);
+            assert_eq!(TokenType::Eof, token.ttype);
             assert_eq!(TokenType::RightBrace, expected);
         }
         _ => panic!(),
@@ -29,15 +25,11 @@ fn invalid_stmt_in_invalid_subscope() {
 
     match found.err().unwrap() {
         ParseError::UnexpectedToken {
-            line,
-            col,
-            found,
-            expected,
-            ..
+            token, expected, ..
         } => {
-            assert_eq!(1, line);
-            assert_eq!(10, col);
-            assert_eq!(TokenType::Eof, found);
+            assert_eq!(1, token.line);
+            assert_eq!(10, token.column);
+            assert_eq!(TokenType::Eof, token.ttype);
             assert_eq!(TokenType::RightBrace, expected);
         }
         _ => panic!(),
@@ -53,7 +45,7 @@ fn inner_scope_implicit_return() {
         ScopeBoundStatement::Scope(vec![ScopeBoundStatement::Scope(vec![
             ScopeBoundStatement::ImplicitReturn(Expression::Binary {
                 left: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 3,
                         ttype: TokenType::Integer,
@@ -61,7 +53,7 @@ fn inner_scope_implicit_return() {
                         found_in: "inner_scope_implicit_return".to_owned()
                     })
                 }),
-                operation: Arc::new(Token {
+                operation: Box::new(Token {
                     line: 1,
                     column: 5,
                     ttype: TokenType::Plus,
@@ -69,7 +61,7 @@ fn inner_scope_implicit_return() {
                     found_in: "inner_scope_implicit_return".to_owned()
                 }),
                 right: Box::new(Expression::Literal {
-                    literal: Arc::new(Token {
+                    literal: Box::new(Token {
                         line: 1,
                         column: 7,
                         ttype: TokenType::Integer,

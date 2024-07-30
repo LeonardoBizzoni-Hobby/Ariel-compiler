@@ -9,8 +9,6 @@ use crate::{
     },
 };
 
-use std::sync::Arc;
-
 fn parse(file_name: &str, content: &str) -> Result<ScopeBoundStatement, ParseError> {
     create_test_file(file_name, content);
     let mut file = SourceFile::new(file_name).unwrap();

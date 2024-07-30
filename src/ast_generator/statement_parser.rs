@@ -351,10 +351,14 @@ pub fn parse_variable_declaration(
                         Box::new(parse_assignable_stmt(head)?),
                     ))
                 }
-                Err(_) => {
-                    return Err(ParseError::InvalidVariableDeclaration {
-                        token: std::mem::take(&mut head.curr),
-                    })
+                Err(e) => {
+                    if let ParseError::UnexpectedToken { token, .. } = e {
+                        return Err(ParseError::InvalidVariableDeclaration {
+                            token
+                        });
+                    } else {
+                        panic!("Something went wrong during `let` statement parse.");
+                    }
                 }
             }
         }
