@@ -1,6 +1,10 @@
-use std::{collections::HashSet, sync::{Arc, Mutex}};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{Arc, Mutex},
+};
 
 use ast_generator::ast::Ast;
+use ast_walker::{global_env::Environment, value::Value};
 
 use crate::ast_generator::parser;
 
@@ -15,7 +19,7 @@ pub fn compile(source: &str) {
     #[cfg(debug_assertions)]
     let start_timer = std::time::Instant::now();
 
-    let _ast_forest: Vec<Ast> = parser::parse(source, imported_files);
+    let ast_forest: Vec<Ast> = parser::parse(source, imported_files);
 
     #[cfg(debug_assertions)]
     {
@@ -30,28 +34,38 @@ pub fn compile(source: &str) {
         // println!("{:#?}", ast_forest);
     }
 
-    // let glob_env: HashMap<Arc<Token>, Ast> = HashMap::new();
-    // for ast in ast_forest.iter() {
-    //     match ast {
-    //         Ast::Fn(func) => {
-    //             if glob_env.contains_key(&func.name) {
-    //                 eprintln!("`{}` is defined more then once.", func.name.lexeme);
-    //                 return;
-    //             }
+    let mut glob_env: Environment = HashMap::new();
+    macro_rules! check_and_insert {
+        ($ast2check:expr, $value2insert:expr) => {
+            if glob_env.contains_key($ast2check.name.lexeme.as_str()) {
+                eprintln!("`{}` is defined more then once.", $ast2check.name.lexeme);
+                return;
+            }
 
-    //             for arg in func.args.iter() {
-    //                 match arg.1 {
-    //                     DataType::Array(..) => todo!(),
-    //                     DataType::Pointer(..) => todo!(),
-    //                     DataType::Compound { .. } => {}
-    //                     _ => {}
-    //                 }
-    //             }
+            glob_env.insert(&$ast2check.name.lexeme, $value2insert);
+        };
+    }
 
-    //             // glob_env.insert(Arc::clone(&func.name), *ast);
-    //         }
-    //         Ast::Enum(..) => todo!(),
-    //         Ast::Struct(..) => todo!(),
-    //     }
-    // }
+    for ast in ast_forest.iter() {
+        match ast {
+            Ast::Fn(func) => {
+                check_and_insert!(
+                    func,
+                    Value::Function {
+                        arity: func.args.len(),
+                        closure_env: &glob_env as *const Environment,
+                        ast: func,
+                    }
+                );
+            }
+            Ast::Enum(enumeration) => {
+                check_and_insert!(enumeration, Value::Enum { ast: enumeration });
+            }
+            Ast::Struct(class) => {
+                check_and_insert!(class, Value::Struct { ast: class });
+            }
+        }
+    }
+
+    println!("{glob_env:#?}");
 }

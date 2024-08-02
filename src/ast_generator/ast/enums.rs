@@ -6,15 +6,12 @@ use super::variables::DataType;
 
 #[derive(Debug)]
 pub struct Enum {
-    _name: Box<Token>,
-    _variants: HashMap<Box<Token>, Option<DataType>>,
+    pub name: Box<Token>,
+    pub variants: HashMap<Box<Token>, Option<DataType>>,
 }
 
 impl Enum {
     pub fn new(name: Box<Token>, variants: HashMap<Box<Token>, Option<DataType>>) -> Self {
-        Self {
-            _name: name,
-            _variants: variants,
-        }
+        Self { name, variants }
     }
 }
