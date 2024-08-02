@@ -4,7 +4,7 @@ use std::{
 };
 
 use ast_generator::ast::Ast;
-use ast_walker::{global_env::Environment, value::Value};
+use ast_walker::{env::Environment, value::Value};
 
 use crate::ast_generator::parser;
 

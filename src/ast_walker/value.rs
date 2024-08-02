@@ -1,6 +1,6 @@
 use crate::ast_generator::ast::{enums::Enum, function::Function, structs::Struct};
 
-use super::global_env::Environment;
+use super::env::Environment;
 
 #[derive(Debug)]
 #[allow(dead_code)]
