@@ -1,6 +1,8 @@
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+    },
 };
 
 use ast_generator::ast::Ast;
@@ -34,38 +36,36 @@ pub fn compile(source: &str) {
         // println!("{:#?}", ast_forest);
     }
 
-    let mut glob_env: Environment = HashMap::new();
+    let mut global_env: Environment = HashMap::new();
+    let env_ptr: *mut Environment = &mut global_env;
     macro_rules! check_and_insert {
         ($ast2check:expr, $value2insert:expr) => {
-            if glob_env.contains_key($ast2check.name.lexeme.as_str()) {
-                eprintln!("`{}` is defined more then once.", $ast2check.name.lexeme);
-                return;
-            }
+            unsafe {
+                if (*env_ptr).contains_key($ast2check.name.lexeme.as_str()) {
+                    eprintln!("`{}` is defined more then once.", $ast2check.name.lexeme);
+                    return;
+                }
 
-            glob_env.insert(&$ast2check.name.lexeme, $value2insert);
+                (*env_ptr).insert(&$ast2check.name.lexeme, $value2insert);
+            }
         };
     }
 
     for ast in ast_forest.iter() {
         match ast {
-            Ast::Fn(func) => {
-                check_and_insert!(
-                    func,
-                    Value::Function {
-                        arity: func.args.len(),
-                        closure_env: &glob_env as *const Environment,
-                        ast: func,
-                    }
-                );
-            }
-            Ast::Enum(enumeration) => {
-                check_and_insert!(enumeration, Value::Enum { ast: enumeration });
-            }
-            Ast::Struct(class) => {
-                check_and_insert!(class, Value::Struct { ast: class });
-            }
+            Ast::Fn(func) => check_and_insert!(
+                func,
+                Value::Function {
+                    arity: func.args.len(),
+                    returns: &func.ret_type,
+                    closure_env: &global_env,
+                    ast: func,
+                }
+            ),
+            Ast::Enum(enumeration) => check_and_insert!(enumeration, Value::Enum { ast: enumeration }),
+            Ast::Struct(class) => check_and_insert!(class, Value::Struct { ast: class }),
         }
     }
 
-    println!("{glob_env:#?}");
+    println!("{global_env:#?}");
 }

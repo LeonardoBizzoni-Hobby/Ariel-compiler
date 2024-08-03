@@ -3,4 +3,8 @@ use crate::tokens::token::Token;
 use super::variables::DataType;
 
 #[derive(Debug)]
-pub struct Argument(pub Box<Token>, pub DataType);
+#[allow(dead_code)]
+pub struct Argument {
+    pub name: Box<Token>,
+    pub arg_type: DataType,
+}

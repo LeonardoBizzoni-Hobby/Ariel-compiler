@@ -5,6 +5,7 @@ use crate::tokens::token::Token;
 use super::variables::DataType;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Enum {
     pub name: Box<Token>,
     pub variants: HashMap<Box<Token>, Option<DataType>>,

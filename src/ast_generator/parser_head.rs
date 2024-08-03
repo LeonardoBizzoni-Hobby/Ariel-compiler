@@ -110,7 +110,10 @@ impl<'a> ParserHead<'a> {
         // : -> datatype
         self.advance();
 
-        Ok(Argument(field_name, self.parse_datatype()?))
+        Ok(Argument {
+            name: field_name,
+            arg_type: self.parse_datatype()?,
+        })
     }
 
     pub fn synchronize(&mut self) {

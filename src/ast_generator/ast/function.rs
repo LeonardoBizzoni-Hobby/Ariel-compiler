@@ -6,18 +6,19 @@ use crate::{
 };
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Function {
-    _is_main: bool,
+    is_main: bool,
     pub name: Box<Token>,
     pub args: Vec<Argument>,
-    ret_type: Option<DataType>,
+    pub ret_type: Option<DataType>,
     body: Option<Vec<ScopeBoundStatement>>,
 }
 
 impl Function {
     pub fn make_main(token: Box<Token>) -> Self {
         Self {
-            _is_main: true,
+            is_main: true,
             name: token,
             args: vec![],
             ret_type: None,
@@ -27,7 +28,7 @@ impl Function {
 
     pub fn make_func(token: Box<Token>) -> Self {
         Self {
-            _is_main: false,
+            is_main: false,
             name: token,
             args: vec![],
             ret_type: None,
@@ -35,14 +36,17 @@ impl Function {
         }
     }
 
+    #[inline]
     pub fn args(&mut self, args: Vec<Argument>) {
         self.args = args;
     }
 
+    #[inline]
     pub fn body(&mut self, body: Option<Vec<ScopeBoundStatement>>) {
         self.body = body;
     }
 
+    #[inline]
     pub fn ret_type(&mut self, ret_type: DataType) {
         self.ret_type = Some(ret_type);
     }
