@@ -8,7 +8,7 @@ use colored::Colorize;
 
 use crate::{
     ast_generator::{
-        ast::{enums::Enum, function::Function, datatypes::DataType},
+        ast::{datatypes::DataType, enums::Enum, function::Function},
         statement_parser::parse_scope_block,
     },
     tokens::{
@@ -21,7 +21,7 @@ use crate::{
 };
 
 use super::{
-    ast::{function_arg::Argument, structs::Struct, ASTs},
+    ast::{structs::Struct, ASTs},
     parser_head::ParserHead,
     utils,
 };
@@ -119,33 +119,27 @@ fn parse_global_stmt(
                     continue;
                 }
             }
-            TokenType::Fn => {
-                match parse_function_definition(head) {
-                    Ok(func_ast) => ast.fns.push(func_ast),
-                    Err(e) => {
-                        utils::print_error(curr_file_name, &head.prev.lexeme, e);
-                        head.synchronize();
-                    },
+            TokenType::Fn => match parse_function_definition(head) {
+                Ok(func_ast) => ast.fns.push(func_ast),
+                Err(e) => {
+                    utils::print_error(curr_file_name, &head.prev.lexeme, e);
+                    head.synchronize();
                 }
-            }
-            TokenType::Enum => {
-                match parse_enum_definition(head) {
-                    Ok(enum_ast) => ast.enums.push(enum_ast),
-                    Err(e) => {
-                        utils::print_error(curr_file_name, &head.prev.lexeme, e);
-                        head.synchronize();
-                    },
+            },
+            TokenType::Enum => match parse_enum_definition(head) {
+                Ok(enum_ast) => ast.enums.push(enum_ast),
+                Err(e) => {
+                    utils::print_error(curr_file_name, &head.prev.lexeme, e);
+                    head.synchronize();
                 }
-            }
-            TokenType::Struct => {
-                match parse_struct_definition(head) {
-                    Ok(struct_ast) => ast.structs.push(struct_ast),
-                    Err(e) => {
-                        utils::print_error(curr_file_name, &head.prev.lexeme, e);
-                        head.synchronize();
-                    },
+            },
+            TokenType::Struct => match parse_struct_definition(head) {
+                Ok(struct_ast) => ast.structs.push(struct_ast),
+                Err(e) => {
+                    utils::print_error(curr_file_name, &head.prev.lexeme, e);
+                    head.synchronize();
                 }
-            }
+            },
             _ => {}
         }
     }
@@ -153,7 +147,6 @@ fn parse_global_stmt(
 
 fn parse_function_definition(head: &mut ParserHead) -> Result<Function, ParseError> {
     let mut function: Function;
-    let mut args: Vec<Argument> = vec![];
 
     // fn -> fn_name
     head.advance();
@@ -165,7 +158,11 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Function, ParseErr
         TokenType::Identifier => {
             function = Function::make_func(std::mem::take(&mut head.curr));
         }
-        _ => return Err(ParseError::InvalidFnName { name: std::mem::take(&mut head.curr) }),
+        _ => {
+            return Err(ParseError::InvalidFnName {
+                name: std::mem::take(&mut head.curr),
+            })
+        }
     }
 
     // fn_name -> (
@@ -177,7 +174,7 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Function, ParseErr
 
     // Function argument parsing
     while !matches!(head.curr.ttype, TokenType::RightParen) {
-        args.push(head.parse_argument()?);
+        function.args.push(head.parse_argument()?);
 
         match head.curr.ttype {
             TokenType::RightParen => break,
@@ -201,14 +198,13 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Function, ParseErr
     // ) -> {
     // ) -> ;
     head.advance();
-    function.args(args);
 
     // Return type parsing
-    let body = match head.curr.ttype {
+    function.body = match head.curr.ttype {
         TokenType::Arrow => {
             // -> -> datatype
             head.advance();
-            function.ret_type(head.parse_datatype()?);
+            function.ret_type = Some(head.parse_datatype()?);
 
             // Function body parsing
             head.require_current_is(TokenType::LeftBrace)?;
@@ -222,10 +218,13 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Function, ParseErr
             Some(parse_scope_block(head)?)
         }
         TokenType::Semicolon => None,
-        _ => return Err(ParseError::InvalidFnBody { body: std::mem::take(&mut head.curr) }),
+        _ => {
+            return Err(ParseError::InvalidFnBody {
+                body: std::mem::take(&mut head.curr),
+            })
+        }
     };
 
-    function.body(body);
     Ok(function)
 }
 

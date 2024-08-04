@@ -1,6 +1,6 @@
 use crate::{
     ast_generator::ast::{
-        function_arg::Argument, scopebound_statements::ScopeBoundStatement, datatypes::DataType,
+        scopebound_statements::ScopeBoundStatement, datatypes::DataType,
     },
     tokens::token::Token,
 };
@@ -10,9 +10,9 @@ use crate::{
 pub struct Function {
     is_main: bool,
     pub name: Box<Token>,
-    pub args: Vec<Argument>,
+    pub args: Vec<(Box<Token>, DataType)>,
     pub ret_type: Option<DataType>,
-    body: Option<Vec<ScopeBoundStatement>>,
+    pub body: Option<Vec<ScopeBoundStatement>>,
 }
 
 impl Function {
@@ -34,20 +34,5 @@ impl Function {
             ret_type: None,
             body: None,
         }
-    }
-
-    #[inline]
-    pub fn args(&mut self, args: Vec<Argument>) {
-        self.args = args;
-    }
-
-    #[inline]
-    pub fn body(&mut self, body: Option<Vec<ScopeBoundStatement>>) {
-        self.body = body;
-    }
-
-    #[inline]
-    pub fn ret_type(&mut self, ret_type: DataType) {
-        self.ret_type = Some(ret_type);
     }
 }

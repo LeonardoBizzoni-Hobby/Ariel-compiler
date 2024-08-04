@@ -6,8 +6,6 @@ pub mod enums;
 pub mod function;
 pub mod structs;
 
-pub mod function_arg;
-
 pub mod expressions;
 pub mod scopebound_statements;
 

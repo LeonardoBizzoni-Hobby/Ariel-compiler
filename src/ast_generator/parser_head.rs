@@ -4,7 +4,7 @@ use crate::tokens::{
     error::ParseError, source::SourceFile, token::Token, token_type::TokenType, tokenizer,
 };
 
-use super::ast::{function_arg::Argument, datatypes::DataType};
+use super::ast::datatypes::DataType;
 
 pub struct ParserHead<'a> {
     pub curr: Box<Token>,
@@ -99,7 +99,7 @@ impl<'a> ParserHead<'a> {
         }
     }
 
-    pub fn parse_argument(&mut self) -> Result<Argument, ParseError> {
+    pub fn parse_argument(&mut self) -> Result<(Box<Token>, DataType), ParseError> {
         self.require_current_is(TokenType::Identifier)?;
         let field_name = std::mem::take(&mut self.curr);
 
@@ -110,10 +110,7 @@ impl<'a> ParserHead<'a> {
         // : -> datatype
         self.advance();
 
-        Ok(Argument {
-            name: field_name,
-            arg_type: self.parse_datatype()?,
-        })
+        Ok((field_name, self.parse_datatype()?))
     }
 
     pub fn synchronize(&mut self) {
