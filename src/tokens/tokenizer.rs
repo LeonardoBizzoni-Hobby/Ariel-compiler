@@ -205,13 +205,13 @@ pub fn get_token(source: &mut SourceFile) -> Box<Token> {
 
 #[inline]
 fn make_token(ttype: TokenType, source: &mut SourceFile) -> Box<Token> {
-    Box::new(Token::new(
-        source.line,
-        source.column - (source.current - source.start),
+    Box::new(Token {
+        line: source.line,
+        column: source.column - (source.current - source.start),
         ttype,
-        source.build_lexeme(),
-        source.name.clone(),
-    ))
+        lexeme: source.build_lexeme(),
+        found_in: source.name.clone(),
+    })
 }
 
 fn make_number_token(source: &mut SourceFile) -> Box<Token> {
@@ -298,18 +298,18 @@ fn make_identifier_token(source: &mut SourceFile) -> Box<Token> {
 }
 
 fn make_token_from(ttype: TokenType, lexeme: &str, source: &mut SourceFile) -> Box<Token> {
-    Box::new(Token::new(
-        source.line,
-        {
+    Box::new(Token {
+        line: source.line,
+        column: {
             match ttype {
                 TokenType::Unknown(_) => source.column - 1,
                 _ => source.column - lexeme.len(),
             }
         },
         ttype,
-        lexeme.to_string(),
-        source.name.clone(),
-    ))
+        lexeme: lexeme.to_string(),
+        found_in: source.name.clone(),
+    })
 }
 
 fn skip_whitespace(source: &mut SourceFile) {
@@ -405,48 +405,48 @@ mod tests {
 
         let scanned: Vec<Box<Token>> = scan_file("single.file");
         let expected = vec![
-            Box::new(Token::new(
-                1,
-                0,
-                TokenType::Identifier,
-                String::from("a"),
-                "single.file".to_string(),
-            )),
-            Box::new(Token::new(
-                1,
-                2,
-                TokenType::Identifier,
-                String::from("b"),
-                "single.file".to_string(),
-            )),
-            Box::new(Token::new(
-                1,
-                4,
-                TokenType::Identifier,
-                String::from("c"),
-                "single.file".to_string(),
-            )),
-            Box::new(Token::new(
-                1,
-                6,
-                TokenType::Identifier,
-                String::from("d"),
-                "single.file".to_string(),
-            )),
-            Box::new(Token::new(
-                1,
-                8,
-                TokenType::Identifier,
-                String::from("e"),
-                "single.file".to_string(),
-            )),
-            Box::new(Token::new(
-                1,
-                9,
-                TokenType::Eof,
-                String::new(),
-                "single.file".to_string(),
-            )),
+            Box::new(Token {
+                line: 1,
+                column: 0,
+                ttype: TokenType::Identifier,
+                lexeme: String::from("a"),
+                found_in: "single.file".to_string(),
+            }),
+            Box::new(Token {
+                line: 1,
+                column: 2,
+                ttype: TokenType::Identifier,
+                lexeme: String::from("b"),
+                found_in: "single.file".to_string(),
+            }),
+            Box::new(Token {
+                line: 1,
+                column: 4,
+                ttype: TokenType::Identifier,
+                lexeme: String::from("c"),
+                found_in: "single.file".to_string(),
+            }),
+            Box::new(Token {
+                line: 1,
+                column: 6,
+                ttype: TokenType::Identifier,
+                lexeme: String::from("d"),
+                found_in: "single.file".to_string(),
+            }),
+            Box::new(Token {
+                line: 1,
+                column: 8,
+                ttype: TokenType::Identifier,
+                lexeme: String::from("e"),
+                found_in: "single.file".to_string(),
+            }),
+            Box::new(Token {
+                line: 1,
+                column: 9,
+                ttype: TokenType::Eof,
+                lexeme: String::new(),
+                found_in: "single.file".to_string(),
+            }),
         ];
 
         assert_eq!(expected.len(), scanned.len());

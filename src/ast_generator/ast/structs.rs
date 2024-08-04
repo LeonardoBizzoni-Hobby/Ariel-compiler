@@ -1,6 +1,6 @@
 use crate::tokens::token::Token;
 
-use super::variables::DataType;
+use super::datatypes::DataType;
 
 #[derive(Debug)]
 #[allow(dead_code)]

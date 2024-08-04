@@ -4,7 +4,7 @@ use crate::tokens::{
     error::ParseError, source::SourceFile, token::Token, token_type::TokenType, tokenizer,
 };
 
-use super::ast::{function_arg::Argument, variables::DataType};
+use super::ast::{function_arg::Argument, datatypes::DataType};
 
 pub struct ParserHead<'a> {
     pub curr: Box<Token>,
@@ -101,7 +101,7 @@ impl<'a> ParserHead<'a> {
 
     pub fn parse_argument(&mut self) -> Result<Argument, ParseError> {
         self.require_current_is(TokenType::Identifier)?;
-        let field_name = mem::take(&mut self.curr);
+        let field_name = std::mem::take(&mut self.curr);
 
         // arg_name -> :
         self.advance();

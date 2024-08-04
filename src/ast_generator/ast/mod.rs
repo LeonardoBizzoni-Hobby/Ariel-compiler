@@ -12,10 +12,27 @@ pub mod expressions;
 pub mod scopebound_statements;
 
 pub mod variables;
+pub mod datatypes;
 
-#[derive(Debug)]
-pub enum Ast {
-    Fn(Function),
-    Enum(Enum),
-    Struct(Struct),
+pub struct ASTs {
+    pub fns: Vec<Function>,
+    pub enums: Vec<Enum>,
+    pub structs: Vec<Struct>,
+}
+
+impl ASTs {
+    pub fn new() -> Self {
+        Self {
+            fns: vec![],
+            enums: vec![],
+            structs: vec![],
+        }
+    }
+
+    #[inline]
+    pub fn merge(&mut self, other: ASTs) {
+        self.fns.extend(other.fns);
+        self.enums.extend(other.enums);
+        self.structs.extend(other.structs);
+    }
 }

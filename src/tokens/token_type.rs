@@ -100,6 +100,12 @@ pub enum TokenType {
     Isize,
 }
 
+impl Default for TokenType {
+    fn default() -> Self {
+        Self::Unknown('\0')
+    }
+}
+
 impl Display for TokenType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

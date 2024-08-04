@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use crate::ast_generator::ast::{
-    enums::Enum, function::Function, structs::Struct, variables::DataType,
+    enums::Enum, function::Function, structs::Struct, datatypes::DataType,
 };
 
 use super::env::Environment;

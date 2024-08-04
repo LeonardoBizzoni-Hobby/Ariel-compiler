@@ -13,7 +13,7 @@ fn parse(file_name: &str, content: &str) -> Result<ScopeBoundStatement, ParseErr
     create_test_file(file_name, content);
     let mut file = SourceFile::new(file_name).unwrap();
 
-    let mut head = ParserHead::new(tokenizer::get_token(&mut file), Box::new(Token::default()), &mut file);
+    let mut head = ParserHead::new(tokenizer::get_token(&mut file), Box::new(Token::new()), &mut file);
 
     delete_test_file(file_name);
     parse_scopebound_statement(&mut head)

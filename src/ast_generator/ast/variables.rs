@@ -1,6 +1,6 @@
 use crate::tokens::token::Token;
 
-use super::scopebound_statements::ScopeBoundStatement;
+use super::{datatypes::DataType, scopebound_statements::ScopeBoundStatement};
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Variable {
@@ -17,26 +17,4 @@ impl Variable {
             _value: value,
         }
     }
-}
-
-#[derive(Debug, Eq, PartialEq)]
-pub enum DataType {
-    U8,
-    U16,
-    U32,
-    U64,
-    Usize,
-    I8,
-    I16,
-    I32,
-    I64,
-    Isize,
-    F32,
-    F64,
-    String,
-    Bool,
-    Void,
-    Array(Box<DataType>),
-    Pointer(Box<DataType>),
-    Compound { name: Box<Token> },
 }

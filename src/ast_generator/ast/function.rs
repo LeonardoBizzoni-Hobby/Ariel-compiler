@@ -1,6 +1,6 @@
 use crate::{
     ast_generator::ast::{
-        function_arg::Argument, scopebound_statements::ScopeBoundStatement, variables::DataType,
+        function_arg::Argument, scopebound_statements::ScopeBoundStatement, datatypes::DataType,
     },
     tokens::token::Token,
 };

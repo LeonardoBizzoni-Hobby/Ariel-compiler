@@ -8,7 +8,7 @@ use colored::Colorize;
 
 use crate::{
     ast_generator::{
-        ast::{enums::Enum, function::Function, variables::DataType},
+        ast::{enums::Enum, function::Function, datatypes::DataType},
         statement_parser::parse_scope_block,
     },
     tokens::{
@@ -21,32 +21,31 @@ use crate::{
 };
 
 use super::{
-    ast::{function_arg::Argument, structs::Struct, Ast},
+    ast::{function_arg::Argument, structs::Struct, ASTs},
     parser_head::ParserHead,
     utils,
 };
 
-pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Ast> {
-    let mut ast: Vec<Ast> = vec![];
+pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> ASTs {
+    let mut ast = ASTs::new();
 
-    {
-        let mut mutex_data = match imported_files.lock() {
-            Ok(data) => data,
-            Err(e) => {
-                eprintln!("[{path}] :: {e}");
-                return vec![];
-            }
-        };
-
-        if mutex_data.contains(path) {
-            eprintln!(
-                "{} `{path}` has already been included. Skipping it.",
-                "[Warning]".bold().yellow()
-            );
-            return vec![];
-        } else {
-            mutex_data.insert(path.to_owned());
+    let mut mutex_data = match imported_files.lock() {
+        Ok(data) => data,
+        Err(e) => {
+            eprintln!("[{path}] :: {e}");
+            return ast;
         }
+    };
+
+    if mutex_data.contains(path) {
+        eprintln!(
+            "{} `{path}` has already been included. Skipping it.",
+            "[Warning]".bold().yellow()
+        );
+        return ast;
+    } else {
+        mutex_data.insert(path.to_owned());
+        drop(mutex_data);
     }
 
     let mut source = match SourceFile::new(path) {
@@ -54,15 +53,15 @@ pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Ast
         Err(e) => match e {
             Error::FileNotFound(source, msg) | Error::MemoryMapFiled(source, msg) => {
                 eprintln!("[{source}] :: {msg}");
-                return vec![];
+                return ast;
             }
         },
     };
 
-    let mut handlers: VecDeque<JoinHandle<Vec<Ast>>> = VecDeque::new();
+    let mut handlers: VecDeque<JoinHandle<ASTs>> = VecDeque::new();
     let mut head: ParserHead = ParserHead::new(
         tokenizer::get_token(&mut source),
-        Box::new(Token::default()),
+        Box::new(Token::new()),
         &mut source,
     );
 
@@ -72,15 +71,10 @@ pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Ast
     // After the parse loop wait for the other threads to finish if there are any
     while let Some(handle) = handlers.pop_front() {
         if handle.is_finished() {
-            ast.append(&mut {
-                match handle.join() {
-                    Ok(ast_data) => ast_data,
-                    Err(e) => {
-                        eprintln!("{e:?}");
-                        vec![]
-                    }
-                }
-            });
+            match handle.join() {
+                Ok(other) => ast.merge(other),
+                Err(e) => eprintln!("{e:?}"),
+            }
         } else {
             handlers.push_back(handle);
         }
@@ -91,9 +85,9 @@ pub fn parse(path: &str, imported_files: Arc<Mutex<HashSet<String>>>) -> Vec<Ast
 
 fn parse_global_stmt(
     head: &mut ParserHead,
-    ast: &mut Vec<Ast>,
+    ast: &mut ASTs,
     imported_files: Arc<Mutex<HashSet<String>>>,
-    thread_handles: &mut VecDeque<JoinHandle<Vec<Ast>>>,
+    thread_handles: &mut VecDeque<JoinHandle<ASTs>>,
     curr_file_name: &str,
 ) {
     loop {
@@ -108,7 +102,7 @@ fn parse_global_stmt(
                         let imported_path = head.curr.lexeme.clone();
                         let imported_files = Arc::clone(&imported_files);
 
-                        thread_handles.push_back(thread::spawn(move || -> Vec<Ast> {
+                        thread_handles.push_back(thread::spawn(move || -> ASTs {
                             parse(&imported_path, imported_files)
                         }));
                     }
@@ -125,23 +119,31 @@ fn parse_global_stmt(
                     continue;
                 }
             }
-            TokenType::Fn | TokenType::Struct | TokenType::Enum => {
-                match {
-                    match head.curr.ttype {
-                        TokenType::Fn => parse_function_definition,
-                        TokenType::Struct => parse_struct_definition,
-                        TokenType::Enum => parse_enum_definition,
-                        _ => panic!(),
-                    }
-                }(head)
-                {
-                    Ok(global_stmt) => {
-                        ast.push(global_stmt);
-                    }
+            TokenType::Fn => {
+                match parse_function_definition(head) {
+                    Ok(func_ast) => ast.fns.push(func_ast),
                     Err(e) => {
                         utils::print_error(curr_file_name, &head.prev.lexeme, e);
                         head.synchronize();
-                    }
+                    },
+                }
+            }
+            TokenType::Enum => {
+                match parse_enum_definition(head) {
+                    Ok(enum_ast) => ast.enums.push(enum_ast),
+                    Err(e) => {
+                        utils::print_error(curr_file_name, &head.prev.lexeme, e);
+                        head.synchronize();
+                    },
+                }
+            }
+            TokenType::Struct => {
+                match parse_struct_definition(head) {
+                    Ok(struct_ast) => ast.structs.push(struct_ast),
+                    Err(e) => {
+                        utils::print_error(curr_file_name, &head.prev.lexeme, e);
+                        head.synchronize();
+                    },
                 }
             }
             _ => {}
@@ -149,7 +151,7 @@ fn parse_global_stmt(
     }
 }
 
-fn parse_function_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
+fn parse_function_definition(head: &mut ParserHead) -> Result<Function, ParseError> {
     let mut function: Function;
     let mut args: Vec<Argument> = vec![];
 
@@ -163,7 +165,7 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
         TokenType::Identifier => {
             function = Function::make_func(std::mem::take(&mut head.curr));
         }
-        _ => return Err(ParseError::InvalidFnName { name: std::mem::take(&mut  head.curr) }),
+        _ => return Err(ParseError::InvalidFnName { name: std::mem::take(&mut head.curr) }),
     }
 
     // fn_name -> (
@@ -224,10 +226,10 @@ fn parse_function_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
     };
 
     function.body(body);
-    Ok(Ast::Fn(function))
+    Ok(function)
 }
 
-fn parse_enum_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
+fn parse_enum_definition(head: &mut ParserHead) -> Result<Enum, ParseError> {
     // enum -> enum_name
     head.advance();
 
@@ -280,10 +282,10 @@ fn parse_enum_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
     head.require_current_is(TokenType::RightBrace)?;
     head.advance();
 
-    Ok(Ast::Enum(Enum::new(Box::from(*enum_name), variants)))
+    Ok(Enum::new(Box::from(*enum_name), variants))
 }
 
-fn parse_struct_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
+fn parse_struct_definition(head: &mut ParserHead) -> Result<Struct, ParseError> {
     // struct -> struct_name
     head.advance();
 
@@ -329,5 +331,5 @@ fn parse_struct_definition(head: &mut ParserHead) -> Result<Ast, ParseError> {
     head.require_current_is(TokenType::RightBrace)?;
     head.advance();
 
-    Ok(Ast::Struct(Struct::new(struct_name, fields)))
+    Ok(Struct::new(struct_name, fields))
 }

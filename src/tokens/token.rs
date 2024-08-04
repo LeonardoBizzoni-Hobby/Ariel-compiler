@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use super::token_type::TokenType;
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -12,29 +14,23 @@ pub struct Token {
 impl Default for Token {
     fn default() -> Self {
         Self {
-            line: 0,
-            column: 0,
-            ttype: TokenType::Unknown('\0'),
-            lexeme: "\0".to_string(),
-            found_in: "\0".to_string(),
+            line: Default::default(),
+            column: Default::default(),
+            ttype: Default::default(),
+            lexeme: Default::default(),
+            found_in: Default::default(),
         }
     }
 }
 
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.lexeme)
+    }
+}
+
 impl Token {
-    pub fn new(
-        line: usize,
-        column: usize,
-        ttype: TokenType,
-        lexeme: String,
-        found_in: String,
-    ) -> Self {
-        Self {
-            line,
-            column,
-            ttype,
-            lexeme,
-            found_in,
-        }
+    pub fn new() -> Self {
+        Self::default()
     }
 }
