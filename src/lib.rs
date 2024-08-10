@@ -4,7 +4,7 @@ use std::{
 };
 
 use ast_generator::ast::{
-    datatypes::DataType, enums::Enum, function::Function,
+    datatypes::DataType, enums::Enum, expressions, function::Function,
     scopebound_statements::ScopeBoundStatement, structs::Struct, ASTs,
 };
 use ast_walker::{env::Environment, value::Value};
@@ -159,24 +159,88 @@ fn valid_fn(env: &HashMap<&str, Value>, fns: &[Function]) -> bool {
 
         if let Some(body) = &myfn.body {
             for stmt in body.iter() {
-                match *stmt {
-                    ScopeBoundStatement::Scope(_) => todo!(),
+                match stmt {
+                    ScopeBoundStatement::Scope(stmts) => {
+                        if !validate_local_scope(&stmts) {
+                            return false;
+                        }
+                    }
                     ScopeBoundStatement::VariableDeclaration(_) => todo!(),
-                    ScopeBoundStatement::Return(_) => todo!(),
+                    ScopeBoundStatement::Return(value) => match value {
+                        Some(_value) => match &myfn.ret_type {
+                            Some(expected_type) => {
+                                if *expected_type == DataType::Void {
+                                    eprintln!(
+                                        "[{} {}:{}] Function `{}` didn't expect a return value but an {} is returned here.",
+                                        myfn.name.found_in, myfn.name.line, myfn.name.column, myfn.name.lexeme, "\"TODO: evaluate `_value`\""
+                                    );
+                                    return false;
+                                }
+                            }
+                            None => {
+                                eprintln!(
+                                    "[{} {}:{}] Function `{}` didn't expect a return value but an {} is returned here.",
+                                    myfn.name.found_in, myfn.name.line, myfn.name.column, myfn.name.lexeme, "\"TODO: evaluate `_value`\""
+                                );
+                                return false;
+                            },
+                        },
+                        None => {
+                            if let Some(return_type) = &myfn.ret_type {
+                                if *return_type != DataType::Void {
+                                    eprintln!(
+                                    "[{} {}:{}] Function `{}` expects a return value of type `{return_type}` but there isn't any value being returned here.",
+                                    myfn.name.found_in, myfn.name.line, myfn.name.column, myfn.name.lexeme
+                                );
+                                    return false;
+                                }
+                            }
+                        }
+                    },
                     ScopeBoundStatement::ImplicitReturn(_) => todo!(),
                     ScopeBoundStatement::Expression(_) => todo!(),
                     ScopeBoundStatement::Defer(_) => todo!(),
                     ScopeBoundStatement::Conditional { .. } => todo!(),
                     ScopeBoundStatement::Match { .. } => todo!(),
-                    ScopeBoundStatement::Loop(_) => todo!(),
-                    ScopeBoundStatement::While { .. } => todo!(),
+                    ScopeBoundStatement::Loop(body) => match body {
+                        Some(body) => {
+                            if !validate_loop_scope(&body) {
+                                return false;
+                            }
+                        }
+                        None => {}
+                    },
+                    ScopeBoundStatement::While { condition, body } => {
+                        if !is_boolean(condition) {
+                            return false;
+                        }
+                        match body {
+                            Some(body) => {
+                                if !validate_loop_scope(&body) {
+                                    return false;
+                                }
+                            }
+                            None => {}
+                        }
+                    }
                     ScopeBoundStatement::For { .. } => todo!(),
-                    ScopeBoundStatement::Break => todo!(),
-                    ScopeBoundStatement::Continue => todo!(),
+                    ScopeBoundStatement::Break | ScopeBoundStatement::Continue => return false,
                 }
             }
         }
     }
 
     res
+}
+
+fn validate_local_scope(_stmts: &[ScopeBoundStatement]) -> bool {
+    true
+}
+
+fn validate_loop_scope(_stmts: &[ScopeBoundStatement]) -> bool {
+    true
+}
+
+fn is_boolean(_condition: &expressions::Expression) -> bool {
+    true
 }
