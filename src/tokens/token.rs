@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use super::token_type::TokenType;
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub struct Token {
     pub line: usize,
     pub column: usize,

@@ -7,7 +7,7 @@ use ast_generator::ast::{
     datatypes::DataType, enums::Enum, expressions, function::Function,
     scopebound_statements::ScopeBoundStatement, structs::Struct, ASTs,
 };
-use ast_walker::{env::Environment, value::Value};
+use ast_walker::{env::Environment, type_error::TypeError, value::Value};
 
 use crate::ast_generator::parser;
 
@@ -87,25 +87,17 @@ pub fn compile(source: &str) {
     println!("All good!");
 }
 
-fn valid_field(env: &Environment, datatype: &DataType) -> bool {
-    match datatype {
-        DataType::Compound { name } => env.contains_key(name.lexeme.as_str()),
-        DataType::Pointer(of) | DataType::Array(of) => valid_field(env, of),
-        _ => true,
-    }
-}
-
 fn valid_enums(env: &Environment, enums: &[Enum]) -> bool {
     let mut res = true;
 
     for myenum in enums.iter() {
         for (variant_name, datatype) in myenum.variants.iter() {
             if let Some(dt) = datatype {
-                if !valid_field(env, dt) {
+                if !valid_datatype(env, dt) {
                     res = false;
                     eprintln!(
                         "[{} {}:{}] Enum `{}` defines field `{}` of type `{}` which doesn't exists.",
-                        myenum.name.found_in, myenum.name.line, myenum.name.column, myenum.name.lexeme, variant_name.lexeme, dt
+                        myenum.name.found_in, variant_name.line, variant_name.column, myenum.name.lexeme, variant_name.lexeme, dt
                     );
                 }
             }
@@ -120,11 +112,11 @@ fn valid_structs(env: &Environment, structs: &[Struct]) -> bool {
 
     for mystruct in structs.iter() {
         for (fieldname, datatype) in mystruct.fields.iter() {
-            if !valid_field(env, datatype) {
+            if !valid_datatype(env, datatype) {
                 res = false;
                 eprintln!(
                     "[{} {}:{}] Struct `{}` defines field `{}` of type `{datatype}` which doesn't exists.",
-                    mystruct.name.found_in, mystruct.name.line, mystruct.name.column, mystruct.name.lexeme, fieldname.lexeme
+                    mystruct.name.found_in, fieldname.line, fieldname.column, mystruct.name.lexeme, fieldname.lexeme
                 );
             }
         }
@@ -133,22 +125,22 @@ fn valid_structs(env: &Environment, structs: &[Struct]) -> bool {
     res
 }
 
-fn valid_fn(env: &HashMap<&str, Value>, fns: &[Function]) -> bool {
+fn valid_fn(env: &Environment, fns: &[Function]) -> bool {
     let mut res = true;
 
     for myfn in fns.iter() {
         for (arg, datatype) in myfn.args.iter() {
-            if !valid_field(env, datatype) {
+            if !valid_datatype(env, datatype) {
                 res = false;
                 eprintln!(
                     "[{} {}:{}] Function `{}` expects argument `{}` of type `{datatype}` which doesn't exists.",
-                    myfn.name.found_in, myfn.name.line, myfn.name.column, myfn.name.lexeme, arg.lexeme
+                    myfn.name.found_in, arg.line, arg.column, myfn.name.lexeme, arg.lexeme
                 );
             }
         }
 
         if let Some(datatype) = &myfn.ret_type {
-            if !valid_field(env, datatype) {
+            if !valid_datatype(env, datatype) {
                 res = false;
                 eprintln!(
                     "[{} {}:{}] Function `{}` returns `{datatype}` but this type isn't defined.",
@@ -158,73 +150,50 @@ fn valid_fn(env: &HashMap<&str, Value>, fns: &[Function]) -> bool {
         }
 
         if let Some(body) = &myfn.body {
-            for stmt in body.iter() {
-                match stmt {
-                    ScopeBoundStatement::Scope(stmts) => {
-                        if !validate_local_scope(&stmts) {
-                            return false;
+            if let Err(evec) = validate_local_scope(body, &myfn.ret_type) {
+                for e in evec {
+                    res = false;
+                    match e {
+                        TypeError::InvalidReturnValue {
+                            line,
+                            column,
+                            expected,
+                            got,
+                        } => {
+                            eprintln!(
+                        "[{} {}:{}] Invalid return type in function {}: expected `{expected}` but instead received `{got}`.",
+                        myfn.name.found_in, line, column, myfn.name.lexeme
+                    );
+                        }
+                        TypeError::UnexpectedType {
+                            line,
+                            column,
+                            expected,
+                            got,
+                        } => {
+                            eprintln!(
+                        "[{} {}:{}] Unexpected type in function {}: expected `{expected}` but instead received `{got}`.",
+                        myfn.name.found_in, line, column, myfn.name.lexeme
+                    );
+                        }
+                        TypeError::InvalidStmt { line, column } => {
+                            eprintln!(
+                                "[{} {}:{}] Impossible statement in function {}.",
+                                myfn.name.found_in, line, column, myfn.name.lexeme
+                            );
+                        }
+                        TypeError::InvalidTypeConversion {
+                            line,
+                            column,
+                            from,
+                            to,
+                        } => {
+                            eprintln!(
+                            "[{} {}:{}] Invalid type conversion in function {}: from value of type `{from}` to value of type `{to}`.",
+                            myfn.name.found_in, line, column, myfn.name.lexeme
+                        );
                         }
                     }
-                    ScopeBoundStatement::VariableDeclaration(_) => todo!(),
-                    ScopeBoundStatement::Return(value) => match value {
-                        Some(_value) => match &myfn.ret_type {
-                            Some(expected_type) => {
-                                if *expected_type == DataType::Void {
-                                    eprintln!(
-                                        "[{} {}:{}] Function `{}` didn't expect a return value but an {} is returned here.",
-                                        myfn.name.found_in, myfn.name.line, myfn.name.column, myfn.name.lexeme, "\"TODO: evaluate `_value`\""
-                                    );
-                                    return false;
-                                }
-                            }
-                            None => {
-                                eprintln!(
-                                    "[{} {}:{}] Function `{}` didn't expect a return value but an {} is returned here.",
-                                    myfn.name.found_in, myfn.name.line, myfn.name.column, myfn.name.lexeme, "\"TODO: evaluate `_value`\""
-                                );
-                                return false;
-                            },
-                        },
-                        None => {
-                            if let Some(return_type) = &myfn.ret_type {
-                                if *return_type != DataType::Void {
-                                    eprintln!(
-                                    "[{} {}:{}] Function `{}` expects a return value of type `{return_type}` but there isn't any value being returned here.",
-                                    myfn.name.found_in, myfn.name.line, myfn.name.column, myfn.name.lexeme
-                                );
-                                    return false;
-                                }
-                            }
-                        }
-                    },
-                    ScopeBoundStatement::ImplicitReturn(_) => todo!(),
-                    ScopeBoundStatement::Expression(_) => todo!(),
-                    ScopeBoundStatement::Defer(_) => todo!(),
-                    ScopeBoundStatement::Conditional { .. } => todo!(),
-                    ScopeBoundStatement::Match { .. } => todo!(),
-                    ScopeBoundStatement::Loop(body) => match body {
-                        Some(body) => {
-                            if !validate_loop_scope(&body) {
-                                return false;
-                            }
-                        }
-                        None => {}
-                    },
-                    ScopeBoundStatement::While { condition, body } => {
-                        if !is_boolean(condition) {
-                            return false;
-                        }
-                        match body {
-                            Some(body) => {
-                                if !validate_loop_scope(&body) {
-                                    return false;
-                                }
-                            }
-                            None => {}
-                        }
-                    }
-                    ScopeBoundStatement::For { .. } => todo!(),
-                    ScopeBoundStatement::Break | ScopeBoundStatement::Continue => return false,
                 }
             }
         }
@@ -233,14 +202,188 @@ fn valid_fn(env: &HashMap<&str, Value>, fns: &[Function]) -> bool {
     res
 }
 
-fn validate_local_scope(_stmts: &[ScopeBoundStatement]) -> bool {
-    true
+fn validate_local_scope(
+    stmts: &[ScopeBoundStatement],
+    return_type: &Option<DataType>,
+) -> Result<(), Vec<TypeError>> {
+    let mut errvec = vec![];
+    for stmt in stmts.iter() {
+        match stmt {
+            ScopeBoundStatement::Scope { body, .. } => {
+                if let Err(mut sub_errvec) = validate_local_scope(&body, return_type) {
+                    errvec.append(&mut sub_errvec);
+                }
+            }
+            ScopeBoundStatement::VariableDeclaration { .. } => todo!(),
+            ScopeBoundStatement::Return {
+                value,
+                line,
+                column,
+            } => match value {
+                Some(value) => {
+                    let found_type = evaluate(value);
+                    match return_type {
+                        Some(expected_type) => match (found_type.clone(), expected_type) {
+                            (DataType::Bool, DataType::Bool) => {}
+                            (
+                                DataType::I32,
+                                DataType::String
+                                | DataType::Bool
+                                | DataType::Compound { .. }
+                                | DataType::Void,
+                            )
+                            | (DataType::Bool, _) => {
+                                errvec.push(TypeError::InvalidTypeConversion {
+                                    line: stmt.line(),
+                                    column: stmt.column(),
+                                    from: found_type,
+                                    to: expected_type.clone(),
+                                })
+                            }
+                            _ => {}
+                        },
+                        None => errvec.push(TypeError::InvalidReturnValue {
+                            line: *line,
+                            column: *column,
+                            expected: DataType::Void,
+                            got: evaluate(value),
+                        }),
+                    }
+                }
+                None => {
+                    if let Some(return_type) = return_type {
+                        if *return_type != DataType::Void {
+                            errvec.push(TypeError::InvalidReturnValue {
+                                line: *line,
+                                column: *column,
+                                expected: return_type.clone(),
+                                got: DataType::Void,
+                            });
+                        }
+                    }
+                }
+            },
+            ScopeBoundStatement::ImplicitReturn { .. } => todo!(),
+            ScopeBoundStatement::Expression { .. } => todo!(),
+            ScopeBoundStatement::Defer { .. } => todo!(),
+            ScopeBoundStatement::Conditional { .. } => todo!(),
+            ScopeBoundStatement::Match { .. } => todo!(),
+            ScopeBoundStatement::Loop {
+                line: _,
+                column: _,
+                body: _,
+            } => {
+                // if let Some(body) = body {
+                //     if !validate_loop_scope(&body) {
+                //         return false;
+                //     }
+                // }
+            }
+            ScopeBoundStatement::While {
+                condition,
+                body: _,
+                line,
+                column,
+            } => {
+                let condition_type = evaluate_expr(condition);
+                if condition_type != DataType::Bool {
+                    // eprintln!(
+                    //     "[{} {}:{}] While condition must be a boolean.",
+                    //     myfn.name.found_in, line, column
+                    // );
+                    errvec.push(TypeError::UnexpectedType {
+                        line: *line,
+                        column: *column,
+                        expected: DataType::Bool,
+                        got: condition_type,
+                    });
+                }
+                // if let Some(body) = body {
+                //     if !validate_loop_scope(&body) {
+                //         return false;
+                //     }
+                // }
+            }
+            ScopeBoundStatement::For { .. } => todo!(),
+            ScopeBoundStatement::Break { line, column }
+            | ScopeBoundStatement::Continue { line, column } => {
+                errvec.push(TypeError::InvalidStmt {
+                    line: *line,
+                    column: *column,
+                });
+            }
+        }
+    }
+
+    if errvec.is_empty() {
+        Ok(())
+    } else {
+        Err(errvec)
+    }
 }
 
-fn validate_loop_scope(_stmts: &[ScopeBoundStatement]) -> bool {
-    true
+fn valid_datatype(env: &Environment, datatype: &DataType) -> bool {
+    match datatype {
+        DataType::Compound { name } => env.contains_key(name.lexeme.as_str()),
+        DataType::Pointer(of) | DataType::Array(of) => valid_datatype(env, of),
+        _ => true,
+    }
 }
 
-fn is_boolean(_condition: &expressions::Expression) -> bool {
-    true
+fn evaluate(value: &ScopeBoundStatement) -> DataType {
+    let mut returns = DataType::Void;
+    match value {
+        ScopeBoundStatement::Scope { body, .. } => {
+            for stmt in body.iter() {
+                match stmt {
+                    ScopeBoundStatement::Scope { .. } => todo!(),
+                    ScopeBoundStatement::Return { value, .. } => match value {
+                        Some(value) => returns = evaluate(&value),
+                        None => returns = DataType::Void,
+                    },
+                    ScopeBoundStatement::ImplicitReturn { expr, .. }
+                    | ScopeBoundStatement::Expression { expr, .. } => {
+                        returns = evaluate_expr(&expr)
+                    }
+                    ScopeBoundStatement::Defer { .. } => todo!(),
+                    ScopeBoundStatement::Conditional { .. } => todo!(),
+                    ScopeBoundStatement::Match { .. } => todo!(),
+                    ScopeBoundStatement::Loop { .. } => todo!(),
+                    ScopeBoundStatement::While { .. } => todo!(),
+                    ScopeBoundStatement::For { .. } => todo!(),
+                    _ => {}
+                }
+            }
+        }
+        ScopeBoundStatement::VariableDeclaration { .. } => todo!(),
+        ScopeBoundStatement::Return { .. } => todo!(),
+        ScopeBoundStatement::ImplicitReturn { .. } => todo!(),
+        ScopeBoundStatement::Expression { expr, .. } => returns = evaluate_expr(expr),
+        ScopeBoundStatement::Defer { .. } => todo!(),
+        ScopeBoundStatement::Conditional { .. } => todo!(),
+        ScopeBoundStatement::Match { .. } => todo!(),
+        ScopeBoundStatement::Loop { .. } => todo!(),
+        ScopeBoundStatement::While { .. } => todo!(),
+        ScopeBoundStatement::For { .. } => todo!(),
+        ScopeBoundStatement::Break { .. } => todo!(),
+        ScopeBoundStatement::Continue { .. } => todo!(),
+    }
+
+    returns
+}
+
+fn evaluate_expr(expr: &expressions::Expression) -> DataType {
+    match expr {
+        expressions::Expression::Literal { literal } => match literal.ttype {
+            tokens::token_type::TokenType::Double => DataType::F32,
+            tokens::token_type::TokenType::Integer => DataType::I32,
+            tokens::token_type::TokenType::String => DataType::String,
+            tokens::token_type::TokenType::True | tokens::token_type::TokenType::False => {
+                DataType::Bool
+            }
+            tokens::token_type::TokenType::Nil => DataType::Pointer(Box::new(DataType::Void)),
+            _ => panic!("somehow a non-literal value is interpreted as a literal"),
+        },
+        _ => todo!(),
+    }
 }

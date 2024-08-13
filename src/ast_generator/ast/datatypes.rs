@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::tokens::token::Token;
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum DataType {
     U8,
     U16,

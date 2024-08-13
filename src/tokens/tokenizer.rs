@@ -355,11 +355,16 @@ fn skip_whitespace(source: &mut SourceFile) {
 
 #[inline]
 fn advance(source: &mut SourceFile) -> u8 {
+    advance_by(source, 1)
+}
+
+#[inline]
+fn advance_by(source: &mut SourceFile, increment: usize) -> u8 {
     match source.peek() {
         0 => 0,
         value => {
-            source.current += 1;
-            source.column += 1;
+            source.current += increment;
+            source.column += increment;
             value
         }
     }
