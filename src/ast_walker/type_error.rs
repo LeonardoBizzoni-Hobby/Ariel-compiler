@@ -23,4 +23,10 @@ pub enum TypeError {
         from: DataType,
         to: DataType,
     },
+    InvalidArrayLiteral {
+        line: usize,
+        column: usize,
+        expected: DataType,
+        found: DataType,
+    },
 }

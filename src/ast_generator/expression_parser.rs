@@ -6,7 +6,11 @@ pub fn parse_expression(head: &mut ParserHead) -> Result<Box<Expression>, ParseE
     let left: Box<Expression> = assignment_expression(head)?;
 
     match head.curr.ttype {
-        TokenType::Question => Ok(Box::new(Expression::Monad { value: left })),
+        TokenType::Question => Ok(Box::new(Expression::Monad {
+            value: left,
+            line: head.curr.line,
+            column: head.curr.column,
+        })),
         _ => Ok(left),
     }
 }
@@ -28,13 +32,16 @@ pub fn assignment_expression(head: &mut ParserHead) -> Result<Box<Expression>, P
             let value: Box<Expression> = or_expression(head)?;
 
             match *left {
-                Expression::GetField { from: _, get: _ } | Expression::Name { name: _ } => {
-                    Ok(Box::new(Expression::Binary {
-                        left,
-                        operation,
-                        right: value,
-                    }))
+                Expression::GetField {
+                    from: _, get: _, ..
                 }
+                | Expression::Name { name: _, .. } => Ok(Box::new(Expression::Binary {
+                    left,
+                    operation,
+                    right: value,
+                    line: head.curr.line,
+                    column: head.curr.column,
+                })),
                 _ => Err(ParseError::InvalidAssignmentExpression {
                     operation,
                     assign_to: left,
@@ -53,6 +60,8 @@ pub fn or_expression(head: &mut ParserHead) -> Result<Box<Expression>, ParseErro
 
         left = Box::new(Expression::Binary {
             left,
+            line: head.curr.line,
+            column: head.curr.column,
             operation: std::mem::take(&mut head.prev),
             right: and_expression(head)?,
         });
@@ -70,6 +79,8 @@ pub fn and_expression(head: &mut ParserHead) -> Result<Box<Expression>, ParseErr
 
         left = Box::new(Expression::Binary {
             left,
+            line: head.curr.line,
+            column: head.curr.column,
             operation,
             right: equality_check(head)?,
         });
@@ -85,6 +96,8 @@ pub fn equality_check(head: &mut ParserHead) -> Result<Box<Expression>, ParseErr
         head.advance();
         left = Box::new(Expression::Binary {
             left,
+            line: head.curr.line,
+            column: head.curr.column,
             operation: std::mem::take(&mut head.prev),
             right: comparison_check(head)?,
         });
@@ -105,6 +118,8 @@ pub fn comparison_check(head: &mut ParserHead) -> Result<Box<Expression>, ParseE
 
         left = Box::new(Expression::Binary {
             left,
+            line: head.curr.line,
+            column: head.curr.column,
             operation,
             right: term(head)?,
         });
@@ -128,6 +143,8 @@ pub fn term(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
         head.advance();
 
         left = Box::new(Expression::Binary {
+            line: head.curr.line,
+            column: head.curr.column,
             left,
             operation,
             right: factor(head)?,
@@ -148,6 +165,8 @@ pub fn factor(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
         head.advance();
 
         left = Box::new(Expression::Binary {
+            line: head.curr.line,
+            column: head.curr.column,
             left,
             operation,
             right: unary(head)?,
@@ -160,6 +179,8 @@ pub fn factor(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
 pub fn unary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
     match head.curr.ttype {
         TokenType::Not | TokenType::Minus => Ok(Box::new(Expression::Unary {
+            line: head.curr.line,
+            column: head.curr.column,
             operation: std::mem::take(&mut head.curr),
             value: {
                 head.advance();
@@ -188,6 +209,8 @@ pub fn call(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
 
         head.require_current_is(TokenType::RightParen)?;
         expr = Box::new(Expression::FnCall {
+            line: head.curr.line,
+            column: head.curr.column,
             fn_identifier: expr,
             args,
         });
@@ -210,6 +233,8 @@ pub fn get(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
         head.advance();
 
         expr = Box::new(Expression::GetField {
+            line: head.curr.line,
+            column: head.curr.column,
             from: expr,
             get: property,
         });
@@ -223,6 +248,8 @@ pub fn primary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
         TokenType::Identifier | TokenType::DontCare => {
             head.advance();
             Ok(Box::new(Expression::Name {
+                line: head.curr.line,
+                column: head.curr.column,
                 name: std::mem::take(&mut head.prev),
             }))
         }
@@ -234,6 +261,8 @@ pub fn primary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
         | TokenType::Nil => {
             head.advance();
             Ok(Box::new(Expression::Literal {
+                line: head.curr.line,
+                column: head.curr.column,
                 literal: std::mem::take(&mut head.prev),
             }))
         }
@@ -243,7 +272,12 @@ pub fn primary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
             let next_tk = std::mem::take(&mut head.curr);
             let of: Box<Expression> = primary(head)?;
             match *of {
-                Expression::Name { .. } => Ok(Box::new(Expression::AddressOf { of })),
+                Expression::Name { .. } => Ok(Box::new(Expression::AddressOf {
+                    of,
+
+                    line: head.curr.line,
+                    column: head.curr.column,
+                })),
                 _ => Err(ParseError::InvalidAddressOfValue { at: next_tk }),
             }
         }
@@ -272,7 +306,12 @@ pub fn primary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
             head.require_current_is(TokenType::RightSquare)?;
             head.advance();
 
-            Ok(Box::new(Expression::ArrayLiteral { values }))
+            Ok(Box::new(Expression::ArrayLiteral {
+                values,
+
+                line: head.curr.line,
+                column: head.curr.column,
+            }))
         }
         TokenType::LeftParen => {
             head.advance();
@@ -280,7 +319,12 @@ pub fn primary(head: &mut ParserHead) -> Result<Box<Expression>, ParseError> {
 
             head.require_current_is(TokenType::RightParen)?;
             head.advance();
-            Ok(Box::new(Expression::Nested { nested }))
+            Ok(Box::new(Expression::Nested {
+                nested,
+
+                line: head.curr.line,
+                column: head.curr.column,
+            }))
         }
         _ => Err(ParseError::InvalidExpression {
             token: std::mem::take(&mut head.curr),
@@ -293,6 +337,8 @@ pub fn match_pattern_expression(head: &mut ParserHead) -> Result<Expression, Par
         TokenType::Identifier | TokenType::DontCare => {
             head.advance();
             Ok(Expression::Name {
+                line: head.curr.line,
+                column: head.curr.column,
                 name: std::mem::take(&mut head.prev),
             })
         }
@@ -313,9 +359,16 @@ pub fn match_pattern_expression(head: &mut ParserHead) -> Result<Expression, Par
 
                     head.advance();
 
-                    Ok(Expression::Sequence { start, end })
+                    Ok(Expression::Sequence {
+                        start,
+                        end,
+                        line: head.curr.line,
+                        column: head.curr.column,
+                    })
                 }
                 _ => Ok(Expression::Literal {
+                    line: head.curr.line,
+                    column: head.curr.column,
                     literal: std::mem::take(&mut head.prev),
                 }),
             }
@@ -327,6 +380,8 @@ pub fn match_pattern_expression(head: &mut ParserHead) -> Result<Expression, Par
         | TokenType::Nil => {
             head.advance();
             Ok(Expression::Literal {
+                line: head.curr.line,
+                column: head.curr.column,
                 literal: std::mem::take(&mut head.prev),
             })
         }

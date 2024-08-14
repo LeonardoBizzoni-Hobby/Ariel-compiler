@@ -193,6 +193,17 @@ fn valid_fn(env: &Environment, fns: &[Function]) -> bool {
                             myfn.name.found_in, line, column, myfn.name.lexeme
                         );
                         }
+                        TypeError::InvalidArrayLiteral {
+                            line,
+                            column,
+                            expected,
+                            found,
+                        } => {
+                            eprintln!(
+                            "[{} {}:{}] Invalid array literal in function {}: an array can contain only expression that result to the same type but there was a mix of `{expected}` and `{found}` types.",
+                            myfn.name.found_in, line, column, myfn.name.lexeme
+                        );
+                        }
                     }
                 }
             }
@@ -216,38 +227,88 @@ fn validate_local_scope(
             }
             ScopeBoundStatement::VariableDeclaration { .. } => todo!(),
             ScopeBoundStatement::Return {
-                value,
+                value: maybe_value,
                 line,
                 column,
-            } => match value {
+            } => match maybe_value {
                 Some(value) => {
-                    let found_type = evaluate(value);
-                    match return_type {
-                        Some(expected_type) => match (found_type.clone(), expected_type) {
-                            (DataType::Bool, DataType::Bool) => {}
-                            (
-                                DataType::I32,
-                                DataType::String
-                                | DataType::Bool
-                                | DataType::Compound { .. }
-                                | DataType::Void,
-                            )
-                            | (DataType::Bool, _) => {
-                                errvec.push(TypeError::InvalidTypeConversion {
-                                    line: stmt.line(),
-                                    column: stmt.column(),
-                                    from: found_type,
-                                    to: expected_type.clone(),
-                                })
-                            }
-                            _ => {}
+                    let maybe_found_type: Result<DataType, TypeError> = evaluate(value);
+                    match maybe_found_type {
+                        Ok(found_type) => match return_type {
+                            Some(expected_type) => match (found_type.clone(), expected_type) {
+                                (DataType::Bool, DataType::Bool) => {}
+                                (
+                                    DataType::Array(_) |
+                                    DataType::Pointer(_),
+                                    DataType::U8
+                                    | DataType::U16
+                                    | DataType::U32
+                                    | DataType::U64
+                                    | DataType::Usize
+                                    | DataType::I8
+                                    | DataType::I16
+                                    | DataType::I32
+                                    | DataType::I64
+                                    | DataType::Isize
+                                    | DataType::F32
+                                    | DataType::F64
+                                    | DataType::String
+                                    | DataType::Bool
+                                    | DataType::Compound { .. },
+                                )
+                                | (
+                                    DataType::U8
+                                    | DataType::U16
+                                    | DataType::U32
+                                    | DataType::U64
+                                    | DataType::Usize
+                                    | DataType::I8
+                                    | DataType::I16
+                                    | DataType::I32
+                                    | DataType::I64
+                                    | DataType::Isize
+                                    | DataType::F32
+                                    | DataType::F64,
+                                    DataType::Array(_) | DataType::Pointer(_),
+                                )
+                                | (
+                                    DataType::U8
+                                    | DataType::U16
+                                    | DataType::U32
+                                    | DataType::U64
+                                    | DataType::Usize
+                                    | DataType::I8
+                                    | DataType::I16
+                                    | DataType::I32
+                                    | DataType::I64
+                                    | DataType::Isize
+                                    | DataType::F32
+                                    | DataType::F64,
+                                    DataType::String
+                                    | DataType::Bool
+                                    | DataType::Void
+                                    | DataType::Compound { .. },
+                                )
+                                | (DataType::Bool, _) => {
+                                    errvec.push(TypeError::InvalidTypeConversion {
+                                        line: stmt.line(),
+                                        column: stmt.column(),
+                                        from: found_type,
+                                        to: expected_type.clone(),
+                                    })
+                                }
+                                _ => {
+                                    println!("\t\t{} - {} OK!", found_type.clone(), expected_type);
+                                }
+                            },
+                            None => errvec.push(TypeError::InvalidReturnValue {
+                                line: *line,
+                                column: *column,
+                                expected: DataType::Void,
+                                got: found_type,
+                            }),
                         },
-                        None => errvec.push(TypeError::InvalidReturnValue {
-                            line: *line,
-                            column: *column,
-                            expected: DataType::Void,
-                            got: evaluate(value),
-                        }),
+                        Err(e) => errvec.push(e),
                     }
                 }
                 None => {
@@ -285,24 +346,20 @@ fn validate_local_scope(
                 line,
                 column,
             } => {
-                let condition_type = evaluate_expr(condition);
-                if condition_type != DataType::Bool {
-                    // eprintln!(
-                    //     "[{} {}:{}] While condition must be a boolean.",
-                    //     myfn.name.found_in, line, column
-                    // );
-                    errvec.push(TypeError::UnexpectedType {
-                        line: *line,
-                        column: *column,
-                        expected: DataType::Bool,
-                        got: condition_type,
-                    });
+                let maybe_condition_type = evaluate_expr(condition);
+                match maybe_condition_type {
+                    Ok(condition_type) => {
+                        if condition_type != DataType::Bool {
+                            errvec.push(TypeError::UnexpectedType {
+                                line: *line,
+                                column: *column,
+                                expected: DataType::Bool,
+                                got: condition_type,
+                            });
+                        }
+                    }
+                    Err(e) => errvec.push(e),
                 }
-                // if let Some(body) = body {
-                //     if !validate_loop_scope(&body) {
-                //         return false;
-                //     }
-                // }
             }
             ScopeBoundStatement::For { .. } => todo!(),
             ScopeBoundStatement::Break { line, column }
@@ -330,7 +387,7 @@ fn valid_datatype(env: &Environment, datatype: &DataType) -> bool {
     }
 }
 
-fn evaluate(value: &ScopeBoundStatement) -> DataType {
+fn evaluate(value: &ScopeBoundStatement) -> Result<DataType, TypeError> {
     let mut returns = DataType::Void;
     match value {
         ScopeBoundStatement::Scope { body, .. } => {
@@ -338,12 +395,12 @@ fn evaluate(value: &ScopeBoundStatement) -> DataType {
                 match stmt {
                     ScopeBoundStatement::Scope { .. } => todo!(),
                     ScopeBoundStatement::Return { value, .. } => match value {
-                        Some(value) => returns = evaluate(&value),
+                        Some(value) => returns = evaluate(&value)?,
                         None => returns = DataType::Void,
                     },
                     ScopeBoundStatement::ImplicitReturn { expr, .. }
                     | ScopeBoundStatement::Expression { expr, .. } => {
-                        returns = evaluate_expr(&expr)
+                        returns = evaluate_expr(&expr)?
                     }
                     ScopeBoundStatement::Defer { .. } => todo!(),
                     ScopeBoundStatement::Conditional { .. } => todo!(),
@@ -358,7 +415,7 @@ fn evaluate(value: &ScopeBoundStatement) -> DataType {
         ScopeBoundStatement::VariableDeclaration { .. } => todo!(),
         ScopeBoundStatement::Return { .. } => todo!(),
         ScopeBoundStatement::ImplicitReturn { .. } => todo!(),
-        ScopeBoundStatement::Expression { expr, .. } => returns = evaluate_expr(expr),
+        ScopeBoundStatement::Expression { expr, .. } => returns = evaluate_expr(expr)?,
         ScopeBoundStatement::Defer { .. } => todo!(),
         ScopeBoundStatement::Conditional { .. } => todo!(),
         ScopeBoundStatement::Match { .. } => todo!(),
@@ -369,21 +426,42 @@ fn evaluate(value: &ScopeBoundStatement) -> DataType {
         ScopeBoundStatement::Continue { .. } => todo!(),
     }
 
-    returns
+    Ok(returns)
 }
 
-fn evaluate_expr(expr: &expressions::Expression) -> DataType {
+fn evaluate_expr(expr: &expressions::Expression) -> Result<DataType, TypeError> {
     match expr {
-        expressions::Expression::Literal { literal } => match literal.ttype {
-            tokens::token_type::TokenType::Double => DataType::F32,
-            tokens::token_type::TokenType::Integer => DataType::I32,
-            tokens::token_type::TokenType::String => DataType::String,
+        expressions::Expression::Literal { literal, .. } => match literal.ttype {
+            tokens::token_type::TokenType::Double => Ok(DataType::F32),
+            tokens::token_type::TokenType::Integer => Ok(DataType::I32),
+            tokens::token_type::TokenType::String => Ok(DataType::String),
             tokens::token_type::TokenType::True | tokens::token_type::TokenType::False => {
-                DataType::Bool
+                Ok(DataType::Bool)
             }
-            tokens::token_type::TokenType::Nil => DataType::Pointer(Box::new(DataType::Void)),
+            tokens::token_type::TokenType::Nil => Ok(DataType::Pointer(Box::new(DataType::Void))),
             _ => panic!("somehow a non-literal value is interpreted as a literal"),
         },
+        expressions::Expression::ArrayLiteral { values, .. } => {
+            if values.is_empty() {
+                Ok(DataType::Void)
+            } else {
+                let res: DataType = evaluate_expr(&values[0])?;
+
+                for x in 1..values.len() {
+                    let curr_dt = evaluate_expr(&values[x])?;
+                    if curr_dt != res {
+                        return Err(TypeError::InvalidArrayLiteral {
+                            line: values[x].line(),
+                            column: values[x].column(),
+                            expected: res,
+                            found: curr_dt,
+                        });
+                    }
+                }
+
+                Ok(DataType::Array(Box::new(res)))
+            }
+        }
         _ => todo!(),
     }
 }
