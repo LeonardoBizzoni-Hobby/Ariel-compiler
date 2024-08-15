@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::tokens::token::Token;
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, Clone)]
 pub enum DataType {
     U8,
     U16,
@@ -22,6 +22,78 @@ pub enum DataType {
     Array(Box<DataType>),
     Pointer(Box<DataType>),
     Compound { name: Box<Token> },
+}
+
+impl PartialEq for DataType {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (DataType::U8, DataType::U8)
+            | (DataType::U16, DataType::U16)
+            | (DataType::U32, DataType::U32)
+            | (DataType::U64, DataType::U64 | DataType::Usize)
+            | (DataType::Usize, DataType::Usize)
+            | (DataType::I8, DataType::I8)
+            | (DataType::I16, DataType::I16)
+            | (DataType::I32, DataType::I32)
+            | (DataType::I64, DataType::I64 | DataType::Isize)
+            | (DataType::Isize, DataType::Isize)
+            | (DataType::F32, DataType::F32)
+            | (DataType::F64, DataType::F64)
+            | (DataType::String, DataType::String)
+            | (DataType::Bool, DataType::Bool)
+            | (DataType::Void, DataType::Void) => true,
+
+            (DataType::Array(of), DataType::Array(other_of))
+            | (DataType::Pointer(of), DataType::Pointer(other_of)) => of.eq(other_of),
+
+            (DataType::Compound { name }, DataType::Compound { name: other_name }) => {
+                name.lexeme == other_name.lexeme
+            }
+
+            _ => false,
+        }
+    }
+}
+
+impl PartialOrd for DataType {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match (self, other) {
+            (DataType::U8, DataType::U8)
+            | (DataType::U16, DataType::U16)
+            | (DataType::U32, DataType::U32)
+            | (DataType::U64, DataType::U64 | DataType::Usize)
+            | (DataType::Usize, DataType::Usize)
+            | (DataType::I8, DataType::I8)
+            | (DataType::I16, DataType::I16)
+            | (DataType::I32, DataType::I32)
+            | (DataType::I64, DataType::I64 | DataType::Isize)
+            | (DataType::Isize, DataType::Isize)
+            | (DataType::F32, DataType::F32)
+            | (DataType::F64, DataType::F64)
+            | (DataType::String, DataType::String)
+            | (DataType::Bool, DataType::Bool)
+            | (DataType::Void, DataType::Void) => Some(std::cmp::Ordering::Equal),
+
+            (DataType::Array(of), DataType::Array(other_of))
+            | (DataType::Pointer(of), DataType::Pointer(other_of)) => of.partial_cmp(other_of),
+
+            (DataType::Compound { name }, DataType::Compound { name: other_name }) => {
+                if name.lexeme == other_name.lexeme {
+                    Some(std::cmp::Ordering::Equal)
+                } else {
+                    None
+                }
+            }
+
+            (DataType::U8, DataType::I8)
+            | (DataType::U16, DataType::U8 | DataType::I16)
+            | (DataType::U32, DataType::U8 | DataType::U16 | DataType::I32)
+            | (DataType::U64, DataType::U8 | DataType::U16 | DataType::U32 | DataType::I64)
+            | (DataType::F64, DataType::F32) => Some(std::cmp::Ordering::Greater),
+
+            _ => None,
+        }
+    }
 }
 
 impl Display for DataType {

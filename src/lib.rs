@@ -235,61 +235,8 @@ fn validate_local_scope(
                     let maybe_found_type: Result<DataType, TypeError> = evaluate(value);
                     match maybe_found_type {
                         Ok(found_type) => match return_type {
-                            Some(expected_type) => match (found_type.clone(), expected_type) {
-                                (DataType::Bool, DataType::Bool) => {}
-                                (
-                                    DataType::Array(_) |
-                                    DataType::Pointer(_),
-                                    DataType::U8
-                                    | DataType::U16
-                                    | DataType::U32
-                                    | DataType::U64
-                                    | DataType::Usize
-                                    | DataType::I8
-                                    | DataType::I16
-                                    | DataType::I32
-                                    | DataType::I64
-                                    | DataType::Isize
-                                    | DataType::F32
-                                    | DataType::F64
-                                    | DataType::String
-                                    | DataType::Bool
-                                    | DataType::Compound { .. },
-                                )
-                                | (
-                                    DataType::U8
-                                    | DataType::U16
-                                    | DataType::U32
-                                    | DataType::U64
-                                    | DataType::Usize
-                                    | DataType::I8
-                                    | DataType::I16
-                                    | DataType::I32
-                                    | DataType::I64
-                                    | DataType::Isize
-                                    | DataType::F32
-                                    | DataType::F64,
-                                    DataType::Array(_) | DataType::Pointer(_),
-                                )
-                                | (
-                                    DataType::U8
-                                    | DataType::U16
-                                    | DataType::U32
-                                    | DataType::U64
-                                    | DataType::Usize
-                                    | DataType::I8
-                                    | DataType::I16
-                                    | DataType::I32
-                                    | DataType::I64
-                                    | DataType::Isize
-                                    | DataType::F32
-                                    | DataType::F64,
-                                    DataType::String
-                                    | DataType::Bool
-                                    | DataType::Void
-                                    | DataType::Compound { .. },
-                                )
-                                | (DataType::Bool, _) => {
+                            Some(expected_type) => {
+                                if found_type != *expected_type {
                                     errvec.push(TypeError::InvalidTypeConversion {
                                         line: stmt.line(),
                                         column: stmt.column(),
@@ -297,10 +244,7 @@ fn validate_local_scope(
                                         to: expected_type.clone(),
                                     })
                                 }
-                                _ => {
-                                    println!("\t\t{} - {} OK!", found_type.clone(), expected_type);
-                                }
-                            },
+                            }
                             None => errvec.push(TypeError::InvalidReturnValue {
                                 line: *line,
                                 column: *column,
